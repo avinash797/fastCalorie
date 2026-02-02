@@ -87,6 +87,34 @@ Home page fetches `/api/v1/all-items` (all items, cached 5 min) → initializes 
 
 Item status = worst severity among its checks.
 
+## Git Workflow Rules
+
+These rules are **mandatory** — follow them exactly.
+
+### Branch Strategy
+- Each priority phase (P0–P9) **must** be developed on its own branch.
+- Branch naming: `p<N>/<short-kebab-description>` (e.g., `p1/database-schema`, `p2/auth-system`, `p3/admin-api`).
+- When starting a new priority, create the branch from `master`: `git checkout -b p<N>/<description> master`.
+- When a priority is fully complete and verified, merge the branch into `master` (fast-forward or merge commit) and push.
+- Never commit priority work directly to `master`.
+
+### Commit Strategy
+- Each **task** (checkbox item) within a priority **must** be its own commit.
+- Commit message format: `P<N>: <imperative summary of what was done>` (e.g., `P1: Create Drizzle config and database client`).
+- If multiple closely-related tasks must be combined into one commit, list each task in the commit body with a blank line after the subject:
+  ```
+  P1: Configure Drizzle and create database client
+
+  - Created drizzle.config.ts with schema path and PostgreSQL dialect
+  - Created src/lib/db/index.ts with drizzle client export
+  ```
+- Every commit must leave the project in a buildable state (`npm run build` should pass).
+- Do not bundle unrelated changes into one commit.
+
+### Merge & Cleanup
+- After merging a priority branch to `master`, push `master` to origin.
+- Do not delete remote branches (keep them for history).
+
 ## Environment Variables
 
 ```
