@@ -1,0 +1,95 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+FastCalorie is a fast food nutrition aggregation platform. Admin users upload restaurant nutrition PDFs, AI extracts structured data, admins review/approve it, and consumers search/browse the published nutrition info. The project is a single Next.js 15 monolith (App Router) with admin and consumer route groups.
+
+**Authoritative spec:** `FastCalorie_MVP_Development_Plan.md` contains all detailed requirements, schemas, API contracts, and validation rules. Always consult it for specifics.
+
+**Task tracker:** `TODO.md` tracks implementation progress across 10 priority phases (P0–P9).
+
+## Build & Development Commands
+
+```bash
+npm run dev          # Start dev server (localhost:3000)
+npm run build        # Production build
+npm run lint         # ESLint
+tsc --noEmit         # Type check
+
+# Database (Drizzle ORM)
+npx drizzle-kit generate   # Generate migrations from schema changes
+npx drizzle-kit migrate    # Apply migrations
+npx drizzle-kit studio     # Visual DB browser
+
+# Seed first admin user
+npx tsx scripts/seed-admin.ts
+```
+
+## Tech Stack
+
+- **Framework:** Next.js 15 (App Router), React, TypeScript (strict mode)
+- **Database:** PostgreSQL 16 via Drizzle ORM
+- **Auth:** Custom JWT (bcrypt + jsonwebtoken), 24h expiry, httpOnly cookies
+- **AI:** Anthropic Claude (claude-sonnet-4-20250514) for PDF nutrition extraction
+- **PDF:** pdf-parse (Node.js, text-based PDFs only for MVP)
+- **Validation:** Zod (shared client/server schemas)
+- **UI:** Tailwind CSS 4 + shadcn/ui
+- **Search:** Fuse.js client-side fuzzy search against cached all-items endpoint
+- **State:** TanStack Query (React Query) 5
+- **Deployment:** Vercel + Neon/Supabase PostgreSQL
+
+## Architecture
+
+### Route Structure
+- `src/app/(consumer)/` — Public pages (home/search, restaurant browse, item detail)
+- `src/app/(admin)/admin/` — Protected admin pages (login, dashboard, restaurants, ingestion, items, audit log, users)
+- `src/app/api/admin/` — Admin API endpoints (JWT-protected via `withAuth`)
+- `src/app/api/v1/` — Public consumer API (read-only, cached)
+
+### Key Modules
+- `src/lib/db/schema.ts` — Drizzle schema (5 tables: admins, restaurants, menuItems, ingestionJobs, auditLogs)
+- `src/lib/db/audit.ts` — `logAudit()` helper; every admin mutation must be audit-logged
+- `src/lib/auth/` — JWT sign/verify, bcrypt hashing, `withAuth` middleware wrapper
+- `src/lib/ingestion/` — PDF pipeline: extract.ts → ai-agent.ts → validation.ts, orchestrated by pipeline.ts
+- `src/lib/validators/` — Zod schemas for restaurant and menuItem
+- `src/middleware.ts` — Next.js middleware protecting `/admin/*` routes (UX-level; real auth is `withAuth`)
+
+### PDF Ingestion Pipeline
+Upload → create job (status: pending) → async fire-and-forget: extract text → Claude AI structuring → 9-point validation → status: review → admin reviews/edits inline → approve → create menu_items records. Frontend polls job status every 2s during processing.
+
+### Consumer Search Flow
+Home page fetches `/api/v1/all-items` (all items, cached 5 min) → initializes Fuse.js → debounced 150ms client-side search (<50ms target).
+
+## Key Conventions
+
+- **Path alias:** `@/*` maps to `./src/*`
+- **Soft deletes only:** Restaurants → `status: "archived"`, items → `isAvailable: false`. Never hard-delete.
+- **Audit logging:** Every admin mutation calls `logAudit()` with beforeData/afterData
+- **API error shape:** `{ error: string, details?: unknown }`
+- **Consumer caching:** `s-maxage=300, stale-while-revalidate=600` (restaurants/all-items), `s-maxage=600` (item detail)
+- **Admin caching:** `Cache-Control: no-store`
+- **File storage (MVP):** Local filesystem at `public/uploads/{logos,pdfs}/`
+- **Design:** Consumer = minimal, white bg, orange accent `#E85D26`. Admin = clean internal tool style. Loading states use skeletons, not spinners.
+
+## Validation Engine (9 Checks on Extracted Items)
+
+1. required_fields (Error) — name, calories, proteinG, totalCarbsG, totalFatG non-null
+2. calorie_range (Error) — 1–5000
+3. macro_math (Warning) — `|(P*4+C*4+F*9)-cal|/cal ≤ 0.20`
+4. duplicate_name (Warning) — no identical names in batch
+5. serving_size_present (Warning)
+6. category_assigned (Error)
+7. negative_values (Error) — all nutritional values ≥ 0
+8. sodium_range (Warning) — ≤ 10000mg
+9. confidence_check (Warning) — AI confidence ≠ "low"
+
+Item status = worst severity among its checks.
+
+## Environment Variables
+
+```
+DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY, NEXT_PUBLIC_APP_URL
+SEED_ADMIN_EMAIL, SEED_ADMIN_NAME, SEED_ADMIN_PASSWORD
+```

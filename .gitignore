@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# uploaded files (MVPlocal storage)
+public/uploads/logos/*
+public/uploads/pdfs/*
+!public/uploads/logos/.gitkeep
+!public/uploads/pdfs/.gitkeep
