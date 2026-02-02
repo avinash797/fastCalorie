@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git cherry-pick:*)"
+      "Bash(dir \"C:\\\\Users\\\\Avi\\\\workspace\\\\fastCalorie\" /B /A:D)",
+      "Bash(dir \"C:\\\\Users\\\\Avi\\\\workspace\\\\fastCalorie\\\\.claude\" /B)",
+      "Bash(chmod:*)",
+      "Bash(npx create-next-app:*)",
+      "Bash(npx create-next-app@latest fastcalorie-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run build:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/update-todo.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
