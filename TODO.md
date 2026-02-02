@@ -11,19 +11,19 @@
 
 ---
 
-## P1: Database Schema & ORM (0/5)
+## P1: Database Schema & ORM (5/5) ✅
 
-- [ ] **Configure Drizzle** — Create `drizzle.config.ts`: schema path `./src/lib/db/schema.ts`, output `./drizzle`, dialect `postgresql`, dbCredentials from `DATABASE_URL` env var.
-- [ ] **Create database client** — `src/lib/db/index.ts`: import `drizzle` from `drizzle-orm/postgres-js`, import `postgres`, create client with `DATABASE_URL`, export `db = drizzle(client, { schema })`.
-- [ ] **Create complete schema** — `src/lib/db/schema.ts` with exactly these definitions:
+- [x] **Configure Drizzle** — Create `drizzle.config.ts`: schema path `./src/lib/db/schema.ts`, output `./drizzle`, dialect `postgresql`, dbCredentials from `DATABASE_URL` env var.
+- [x] **Create database client** — `src/lib/db/index.ts`: import `drizzle` from `drizzle-orm/postgres-js`, import `postgres`, create client with `DATABASE_URL`, export `db = drizzle(client, { schema })`.
+- [x] **Create complete schema** — `src/lib/db/schema.ts` with exactly these definitions:
   - Enums: `restaurant_status` (active/draft/archived), `ingestion_status` (pending/processing/review/approved/failed), `audit_action` (create/update/delete/approve).
   - `admins` table: id (uuid pk), email (varchar 255 unique), passwordHash (varchar 255), name (varchar 255), isActive (boolean default true), createdAt, updatedAt.
   - `restaurants` table: id (uuid pk), name (varchar 255), slug (varchar 255 unique), logoUrl (varchar 512 nullable), websiteUrl (varchar 512 nullable), description (text nullable), status (restaurant_status default "draft"), itemCount (int default 0), lastIngestionAt (timestamp nullable), createdAt, updatedAt. Indexes on slug and status.
   - `menuItems` table: id (uuid pk), restaurantId (uuid FK restaurants cascade), name (varchar 500), category (varchar 255), servingSize (varchar 255 nullable), calories (int), totalFatG/saturatedFatG/transFatG (decimal 7,2 nullable), cholesterolMg/sodiumMg (decimal 7,2 nullable), totalCarbsG/dietaryFiberG/sugarsG/proteinG (decimal 7,2 nullable), isAvailable (boolean default true), sourcePdfUrl (varchar 512 nullable), ingestionId (uuid FK ingestionJobs nullable), createdAt, updatedAt. Indexes on restaurantId, category, calories.
   - `ingestionJobs` table: id (uuid pk), restaurantId (uuid FK restaurants cascade), adminId (uuid FK admins), pdfUrl (varchar 512), status (ingestion_status default "pending"), rawText (text nullable), structuredData (jsonb nullable), validationReport (jsonb nullable), itemsExtracted (int default 0), itemsApproved (int default 0), errorLog (text nullable), createdAt, completedAt (nullable).
   - `auditLogs` table: id (uuid pk), adminId (uuid FK admins), entityType (varchar 50), entityId (uuid), action (audit_action), beforeData (jsonb nullable), afterData (jsonb nullable), createdAt. Indexes on (entityType, entityId), adminId, createdAt.
-- [ ] **Run migrations** — `npx drizzle-kit generate` then `npx drizzle-kit migrate`.
-- [ ] **Verify P1** — Connect to DB, confirm 5 tables exist (admins, restaurants, menu_items, ingestion_jobs, audit_logs), all enums created, all indexes created. Optionally run `npx drizzle-kit studio`.
+- [x] **Run migrations** — `npx drizzle-kit generate` then `npx drizzle-kit migrate`.
+- [x] **Verify P1** — Connect to DB, confirm 5 tables exist (admins, restaurants, menu_items, ingestion_jobs, audit_logs), all enums created, all indexes created. Optionally run `npx drizzle-kit studio`.
 
 ---
 
