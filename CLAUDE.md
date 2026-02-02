@@ -92,11 +92,13 @@ Item status = worst severity among its checks.
 These rules are **mandatory** — follow them exactly.
 
 ### Branch Strategy
+- `main` = **production**. Only receives merges from `development`.
+- `development` = **integration**. Priority branches merge here when complete.
 - Each priority phase (P0–P9) **must** be developed on its own branch.
 - Branch naming: `p<N>/<short-kebab-description>` (e.g., `p1/database-schema`, `p2/auth-system`, `p3/admin-api`).
-- When starting a new priority, create the branch from `master`: `git checkout -b p<N>/<description> master`.
-- When a priority is fully complete and verified, merge the branch into `master` (fast-forward or merge commit) and push.
-- Never commit priority work directly to `master`.
+- When starting a new priority, create the branch from `development`: `git checkout -b p<N>/<description> development`.
+- When a priority is fully complete and verified, merge the branch into `development` and push.
+- Never commit priority work directly to `development` or `main`.
 
 ### Commit Strategy
 - Each **task** (checkbox item) within a priority **must** be its own commit.
@@ -112,7 +114,8 @@ These rules are **mandatory** — follow them exactly.
 - Do not bundle unrelated changes into one commit.
 
 ### Merge & Cleanup
-- After merging a priority branch to `master`, push `master` to origin.
+- After merging a priority branch to `development`, push `development` to origin.
+- PRs from `development` → `main` are done for production releases.
 - Do not delete remote branches (keep them for history).
 
 ## Environment Variables
