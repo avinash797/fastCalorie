@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { auditLogs } from "@/lib/db/schema";
 
-type EntityType = "restaurant" | "menu_item" | "ingestion_job";
+type EntityType = "restaurant" | "menu_item" | "ingestion_job" | "admin";
 type AuditAction = "create" | "update" | "delete" | "approve";
 
 interface LogAuditParams {
