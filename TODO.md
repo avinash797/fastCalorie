@@ -79,12 +79,12 @@
 
 ## P6: Consumer API (0/6)
 
-- [ ] **Create restaurant list endpoint** — `src/app/api/v1/restaurants/route.ts`: GET, public. Return `{id, name, slug, logoUrl, description, itemCount, lastIngestionAt}` for restaurants where status="active". Sort alphabetically.
-- [ ] **Create restaurant detail endpoint** — `src/app/api/v1/restaurants/[slug]/route.ts`: GET, public. Return full restaurant record + array of distinct categories. 404 if not found or not active.
-- [ ] **Create restaurant items endpoint** — `src/app/api/v1/restaurants/[slug]/items/route.ts`: GET, public. All available items for restaurant. Query params: `?category=`, `?minProtein=`, `?maxCalories=`, `?sort=calories_asc|calories_desc|protein_desc|name_asc`, `?page=1&limit=50`.
-- [ ] **Create item detail endpoint** — `src/app/api/v1/items/[id]/route.ts`: GET, public. Full item with all nutritional fields, restaurant name/slug, source PDF URL, last updated. 404 if not found or unavailable.
-- [ ] **Create search endpoint** — `src/app/api/v1/search/route.ts`: GET, public. `?q=<term>`. Search menuItems.name, restaurants.name, menuItems.category using PostgreSQL ILIKE. Top 50 results. Return `{id, name, restaurantName, restaurantSlug, category, calories, proteinG, totalCarbsG, totalFatG}`.
-- [ ] **Create all-items cache endpoint** — `src/app/api/v1/all-items/route.ts`: GET, public. ALL available items across active restaurants. Return `{id, name, restaurantId, restaurantName, restaurantSlug, category, calories, proteinG, totalCarbsG, totalFatG, servingSize}`. Set `Cache-Control: public, max-age=300`. Single payload for client-side search (<5k items, ~200KB).
+- [x] **Create restaurant list endpoint** — `src/app/api/v1/restaurants/route.ts`: GET, public. Return `{id, name, slug, logoUrl, description, itemCount, lastIngestionAt}` for restaurants where status="active". Sort alphabetically.
+- [x] **Create restaurant detail endpoint** — `src/app/api/v1/restaurants/[slug]/route.ts`: GET, public. Return full restaurant record + array of distinct categories. 404 if not found or not active.
+- [x] **Create restaurant items endpoint** — `src/app/api/v1/restaurants/[slug]/items/route.ts`: GET, public. All available items for restaurant. Query params: `?category=`, `?minProtein=`, `?maxCalories=`, `?sort=calories_asc|calories_desc|protein_desc|name_asc`, `?page=1&limit=50`.
+- [x] **Create item detail endpoint** — `src/app/api/v1/items/[id]/route.ts`: GET, public. Full item with all nutritional fields, restaurant name/slug, source PDF URL, last updated. 404 if not found or unavailable.
+- [x] **Create search endpoint** — `src/app/api/v1/search/route.ts`: GET, public. `?q=<term>`. Search menuItems.name, restaurants.name, menuItems.category using PostgreSQL ILIKE. Top 50 results. Return `{id, name, restaurantName, restaurantSlug, category, calories, proteinG, totalCarbsG, totalFatG}`.
+- [x] **Create all-items cache endpoint** — `src/app/api/v1/all-items/route.ts`: GET, public. ALL available items across active restaurants. Return `{id, name, restaurantId, restaurantName, restaurantSlug, category, calories, proteinG, totalCarbsG, totalFatG, servingSize}`. Set `Cache-Control: public, max-age=300`. Single payload for client-side search (<5k items, ~200KB).
 
 ---
 
