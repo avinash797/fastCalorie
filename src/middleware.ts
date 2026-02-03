@@ -4,7 +4,7 @@ import { jwtVerify } from "jose";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/admin/login") {
+  if (pathname === "/admin-login") {
     return NextResponse.next();
   }
 
@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
     request.headers.get("Authorization")?.replace("Bearer ", "");
 
   if (!token) {
-    const loginUrl = new URL("/admin/login", request.url);
+    const loginUrl = new URL("/admin-login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -22,7 +22,7 @@ export async function middleware(request: NextRequest) {
     await jwtVerify(token, secret);
     return NextResponse.next();
   } catch {
-    const loginUrl = new URL("/admin/login", request.url);
+    const loginUrl = new URL("/admin-login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 }
