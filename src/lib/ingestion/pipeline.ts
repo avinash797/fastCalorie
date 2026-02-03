@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import path from "path";
 import { db } from "@/lib/db";
 import { ingestionJobs, restaurants } from "@/lib/db/schema";
-import { extractImagesFromPdf } from "./extract";
+import { extractPdfAsBase64 } from "./extract";
 import { aiExtractNutritionData } from "./ai-agent";
 import { runValidation } from "./validation";
 
@@ -16,11 +16,11 @@ async function updateJobStatus(
     .where(eq(ingestionJobs.id, jobId));
 }
 
-async function saveExtractionMetadata(jobId: string, pageCount: number) {
-  // Store metadata about the vision-based extraction in rawText field
+async function saveExtractionMetadata(jobId: string) {
+  // Store metadata about the extraction in rawText field
   await db
     .update(ingestionJobs)
-    .set({ rawText: `Vision-based extraction: ${pageCount} page(s) processed` })
+    .set({ rawText: "PDF document sent directly to Claude for vision-based extraction" })
     .where(eq(ingestionJobs.id, jobId));
 }
 
@@ -80,14 +80,14 @@ export async function runIngestionPipeline(jobId: string): Promise<void> {
     // Stage 1: Update status to "processing"
     await updateJobStatus(jobId, "processing");
 
-    // Stage 2: Convert PDF to images (vision-based approach)
+    // Stage 2: Read PDF as base64 for Claude's document input
     const pdfPath = path.join(process.cwd(), "public", job.pdfUrl);
-    const pageImages = await extractImagesFromPdf(pdfPath);
-    await saveExtractionMetadata(jobId, pageImages.length);
+    const pdfDocument = await extractPdfAsBase64(pdfPath);
+    await saveExtractionMetadata(jobId);
 
-    // Stage 3: Send images to AI agent for visual extraction
+    // Stage 3: Send PDF directly to Claude for vision-based extraction
     const structuredData = await aiExtractNutritionData(
-      pageImages,
+      pdfDocument,
       restaurant.name
     );
     await saveStructuredData(jobId, structuredData, structuredData.length);

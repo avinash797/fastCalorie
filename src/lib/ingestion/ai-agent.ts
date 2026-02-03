@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AI_SYSTEM_PROMPT, getPageContinuationPrompt } from "./prompts";
-import type { PdfPageImage } from "./extract";
+import { AI_SYSTEM_PROMPT } from "./prompts";
+import type { PdfDocument } from "./extract";
 
 const anthropic = new Anthropic();
 
@@ -33,15 +33,10 @@ function parseJsonFromResponse(text: string): ExtractedItem[] {
   return items;
 }
 
-async function extractFromPage(
-  pageImage: PdfPageImage,
-  restaurantName: string,
-  continuationPrompt?: string
+export async function aiExtractNutritionData(
+  pdfDocument: PdfDocument,
+  restaurantName: string
 ): Promise<ExtractedItem[]> {
-  const textContent = continuationPrompt
-    ? `${continuationPrompt}\n\nRestaurant: ${restaurantName}`
-    : `Restaurant: ${restaurantName}\n\nPlease extract all menu items with their nutrition data from this page.`;
-
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 16000,
@@ -51,16 +46,16 @@ async function extractFromPage(
         role: "user",
         content: [
           {
-            type: "image",
+            type: "document",
             source: {
               type: "base64",
-              media_type: pageImage.mimeType,
-              data: pageImage.base64,
+              media_type: pdfDocument.mediaType,
+              data: pdfDocument.base64,
             },
           },
           {
             type: "text",
-            text: textContent,
+            text: `Restaurant: ${restaurantName}\n\nPlease extract all menu items with their nutrition data from this PDF document. Process ALL pages and extract EVERY menu item you can find.`,
           },
         ],
       },
@@ -73,44 +68,4 @@ async function extractFromPage(
     .join("");
 
   return parseJsonFromResponse(text);
-}
-
-export async function aiExtractNutritionData(
-  pageImages: PdfPageImage[],
-  restaurantName: string
-): Promise<ExtractedItem[]> {
-  if (pageImages.length === 1) {
-    return extractFromPage(pageImages[0], restaurantName);
-  }
-
-  // Multi-page processing
-  const allItems: ExtractedItem[] = [];
-  const seenNames = new Set<string>();
-
-  for (let i = 0; i < pageImages.length; i++) {
-    const continuationPrompt =
-      i === 0
-        ? undefined
-        : getPageContinuationPrompt(
-            [...new Set(allItems.map((item) => item.category))],
-            allItems.length,
-            i + 1
-          );
-
-    const pageItems = await extractFromPage(
-      pageImages[i],
-      restaurantName,
-      continuationPrompt
-    );
-
-    // Deduplicate by name
-    for (const item of pageItems) {
-      if (!seenNames.has(item.name)) {
-        seenNames.add(item.name);
-        allItems.push(item);
-      }
-    }
-  }
-
-  return allItems;
 }
