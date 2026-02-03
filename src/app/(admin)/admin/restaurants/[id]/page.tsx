@@ -63,9 +63,9 @@ interface MenuItem {
   name: string;
   category: string;
   calories: number;
-  proteinG: string | null;
-  totalCarbsG: string | null;
-  totalFatG: string | null;
+  proteinG: number | null;
+  totalCarbsG: number | null;
+  totalFatG: number | null;
   isAvailable: boolean;
 }
 
