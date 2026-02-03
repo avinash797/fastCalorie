@@ -6,6 +6,7 @@ import { useItemDetail } from "@/hooks/use-item-detail";
 import { NutritionLabel } from "@/components/consumer/nutrition-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ItemDetailClientProps {
   id: string;
@@ -16,8 +17,49 @@ export function ItemDetailClient({ id }: ItemDetailClientProps) {
 
   if (isLoading) {
     return (
-      <div className="p-12 text-center text-muted-foreground">
-        Loading item...
+      <div className="container mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 pb-20">
+        {/* Back button skeleton */}
+        <div className="mb-6">
+          <Skeleton className="h-10 w-48" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {/* Left Col skeleton */}
+          <div className="lg:col-span-7">
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <Skeleton className="h-10 w-3/4" />
+              <Skeleton className="h-20 w-20 rounded-lg" />
+            </div>
+
+            <div className="flex items-center gap-3 mb-8">
+              <Skeleton className="h-6 w-24 rounded-full" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+
+            {/* Macro visualizer skeleton */}
+            <div className="bg-card rounded-xl shadow-sm border border-border p-6 mb-8">
+              <Skeleton className="h-4 w-32 mb-4" />
+              <Skeleton className="h-4 w-full rounded-full mb-4" />
+              <div className="grid grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i}>
+                    <Skeleton className="h-3 w-16 mb-2" />
+                    <Skeleton className="h-7 w-12 mb-1" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Source info skeleton */}
+            <Skeleton className="h-20 w-full rounded-lg" />
+          </div>
+
+          {/* Right Col skeleton (nutrition label) */}
+          <div className="lg:col-span-5 flex justify-center lg:justify-end">
+            <Skeleton className="h-[500px] w-64 rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }
