@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Restaurant } from "@/types/consumer";
@@ -14,13 +15,14 @@ export function RestaurantCard({ restaurant }: RestaurantCardProps) {
     >
       <Card className="h-full overflow-hidden transition-all duration-200 border-transparent shadow-sm hover:shadow-md hover:border-primary/20 group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-primary bg-card">
         <CardContent className="flex flex-col items-center p-6 text-center">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-3xl shadow-sm group-hover:bg-background group-hover:shadow-md transition-all border border-transparent group-hover:border-border">
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-3xl shadow-sm group-hover:bg-background group-hover:shadow-md transition-all border border-transparent group-hover:border-border overflow-hidden">
             {restaurant.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={restaurant.logoUrl}
                 alt={restaurant.name}
-                className="h-14 w-14 object-contain"
+                width={56}
+                height={56}
+                className="object-contain"
               />
             ) : (
               <span className="font-bold text-muted-foreground/50">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useRestaurantDetail } from "@/hooks/use-restaurant-detail";
@@ -67,13 +68,14 @@ export function RestaurantDetailClient({ slug }: RestaurantDetailClientProps) {
           </Link>
 
           <div className="flex items-center gap-6">
-            <div className="h-24 w-24 flex-shrink-0 flex items-center justify-center rounded-full bg-card shadow-sm border border-border p-2">
+            <div className="h-24 w-24 flex-shrink-0 flex items-center justify-center rounded-full bg-card shadow-sm border border-border p-2 overflow-hidden">
               {restaurant.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={restaurant.logoUrl}
                   alt={restaurant.name}
-                  className="h-full w-full object-contain"
+                  width={80}
+                  height={80}
+                  className="object-contain"
                 />
               ) : (
                 <span className="text-4xl font-bold text-muted-foreground/30">
