@@ -4,12 +4,14 @@ import { useState, useMemo } from "react";
 import Fuse from "fuse.js";
 import { Search } from "lucide-react";
 import { useAllItems } from "@/hooks/use-all-items";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
 import { DishCard } from "@/components/consumer/dish-card";
 
 export function ConsumerHomePageClient() {
   const { data: items, isLoading, error } = useAllItems();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 150);
 
   const fuse = useMemo(() => {
     if (!items) return null;
@@ -26,14 +28,14 @@ export function ConsumerHomePageClient() {
 
   const results = useMemo(() => {
     if (!items) return [];
-    if (!query) return items.slice(0, 50);
+    if (!debouncedQuery) return items.slice(0, 50);
     if (!fuse) return [];
 
     return fuse
-      .search(query)
+      .search(debouncedQuery)
       .map((result) => result.item)
       .slice(0, 50);
-  }, [items, query, fuse]);
+  }, [items, debouncedQuery, fuse]);
 
   return (
     <div className="pb-20">
