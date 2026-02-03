@@ -115,6 +115,30 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Consumer Theme Override */
+.theme-consumer {
+  /* 
+    Using standard OKLCH values for Light/Dark split 
+    Light: Orange Brand
+    Dark: Dark Orange / Burnt Orange
+  */
+  --primary: oklch(0.6 0.2 30); 
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.05 35); 
+  --secondary-foreground: oklch(0.3 0.1 30);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+}
+
+.dark .theme-consumer {
+  --primary: oklch(0.65 0.22 35); /* Slightly lighter orange for dark mode visibility */
+  --primary-foreground: oklch(0.2 0 0);
+  --secondary: oklch(0.25 0.05 35); /* Darker background for secondary items */
+  --secondary-foreground: oklch(0.9 0.05 35);
+  --accent: oklch(0.2 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
