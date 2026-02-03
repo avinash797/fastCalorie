@@ -125,3 +125,4 @@
 - [x] **Create CLAUDE.md** — (Ad hoc: needed to provide onboarding context for future Claude Code instances working in this repo, covering architecture, commands, and conventions)
 - [x] **Create Claude Code Stop hook for TODO.md tracking** — (Ad hoc: user requested an automated hook that blocks Claude from finishing until TODO.md is updated with completed or ad-hoc tasks, ensuring the task tracker stays in sync with actual work)
 - [x] **Implement vision-based PDF extraction** — (Ad hoc: user requested replacing text-based pdf-parse extraction with vision approach using Claude's vision API for higher accuracy on complex table layouts and support for scanned/image-based PDFs)
+- [x] **Fix PDF extraction DOM dependency error** — (Ad hoc: pdf-to-img required browser DOM APIs unavailable in Node.js; switched to Claude's native PDF document input which is simpler and more reliable)
