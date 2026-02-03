@@ -29,7 +29,8 @@
       "Bash(node -e:*)",
       "Bash(npx tsx:*)",
       "Bash(git pull:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm run lint:*)"
     ]
   },
   "hooks": {
