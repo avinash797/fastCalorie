@@ -27,16 +27,16 @@
 
 ---
 
-## P2: Authentication System (0/8)
+## P2: Authentication System (8/8) ✅
 
-- [ ] **Create auth utility library** — `src/lib/auth/index.ts`: `hashPassword(password)` using bcrypt with 12 salt rounds, `verifyPassword(password, hash)` using bcrypt.compare, `signToken(payload: {adminId, email})` using jwt.sign with `JWT_SECRET` env var and 24h expiry, `verifyToken(token)` returning `AdminTokenPayload`.
-- [ ] **Create auth middleware** — `src/lib/auth/middleware.ts`: `withAuth(request, handler)` function that reads `Authorization: Bearer <token>` header, verifies JWT, fetches admin from DB confirming `isActive === true`, passes admin to handler, returns 401 on failure.
-- [ ] **Create admin login endpoint** — `src/app/api/admin/auth/login/route.ts`: POST, body `{email, password}` validated with Zod. Look up admin by email, verify password, sign JWT, return `{token, admin: {id, email, name}}`. 401 for invalid credentials, 403 if deactivated.
-- [ ] **Create admin session check endpoint** — `src/app/api/admin/auth/me/route.ts`: GET, auth required. Return `{id, email, name}` from token. Used by frontend to verify stored token on load.
-- [ ] **Create seed admin CLI script** — `scripts/seed-admin.ts`: runnable with `npx tsx scripts/seed-admin.ts`. Read from env vars `SEED_ADMIN_EMAIL`, `SEED_ADMIN_NAME`, `SEED_ADMIN_PASSWORD` (or prompt). Hash password, insert admin record, print confirmation.
-- [ ] **Create Next.js middleware for admin routes** — `src/middleware.ts`: protect all `/admin/*` routes except `/admin/login`. Check for valid auth cookie/token. Redirect to `/admin/login` if missing/invalid. This is UX-level only; real security is in `withAuth`.
-- [ ] **Create audit log helper** — `src/lib/db/audit.ts`: `logAudit({adminId, entityType, entityId, action, beforeData?, afterData?})` inserts into audit_logs table. entityType is "restaurant" | "menu_item" | "ingestion_job". action is "create" | "update" | "delete" | "approve".
-- [ ] **Verify P2** — Seed admin with `admin@fastcalorie.com`. POST login with correct creds returns JWT. Wrong password returns 401. GET `/api/admin/auth/me` with JWT returns admin info. GET without token returns 401.
+- [x] **Create auth utility library** — `src/lib/auth/index.ts`: `hashPassword(password)` using bcrypt with 12 salt rounds, `verifyPassword(password, hash)` using bcrypt.compare, `signToken(payload: {adminId, email})` using jwt.sign with `JWT_SECRET` env var and 24h expiry, `verifyToken(token)` returning `AdminTokenPayload`.
+- [x] **Create auth middleware** — `src/lib/auth/middleware.ts`: `withAuth(request, handler)` function that reads `Authorization: Bearer <token>` header, verifies JWT, fetches admin from DB confirming `isActive === true`, passes admin to handler, returns 401 on failure.
+- [x] **Create admin login endpoint** — `src/app/api/admin/auth/login/route.ts`: POST, body `{email, password}` validated with Zod. Look up admin by email, verify password, sign JWT, return `{token, admin: {id, email, name}}`. 401 for invalid credentials, 403 if deactivated.
+- [x] **Create admin session check endpoint** — `src/app/api/admin/auth/me/route.ts`: GET, auth required. Return `{id, email, name}` from token. Used by frontend to verify stored token on load.
+- [x] **Create seed admin CLI script** — `scripts/seed-admin.ts`: runnable with `npx tsx scripts/seed-admin.ts`. Read from env vars `SEED_ADMIN_EMAIL`, `SEED_ADMIN_NAME`, `SEED_ADMIN_PASSWORD` (or prompt). Hash password, insert admin record, print confirmation.
+- [x] **Create Next.js middleware for admin routes** — `src/middleware.ts`: protect all `/admin/*` routes except `/admin/login`. Check for valid auth cookie/token. Redirect to `/admin/login` if missing/invalid. This is UX-level only; real security is in `withAuth`.
+- [x] **Create audit log helper** — `src/lib/db/audit.ts`: `logAudit({adminId, entityType, entityId, action, beforeData?, afterData?})` inserts into audit_logs table. entityType is "restaurant" | "menu_item" | "ingestion_job". action is "create" | "update" | "delete" | "approve".
+- [x] **Verify P2** — Seed admin with `admin@fastcalorie.com`. POST login with correct creds returns JWT. Wrong password returns 401. GET `/api/admin/auth/me` with JWT returns admin info. GET without token returns 401.
 
 ---
 
