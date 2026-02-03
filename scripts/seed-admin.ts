@@ -1,5 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
 import { db } from "../src/lib/db";
 import { admins } from "../src/lib/db/schema";
 import { hashPassword } from "../src/lib/auth";
