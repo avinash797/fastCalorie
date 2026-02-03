@@ -10,7 +10,26 @@
       "Bash(npx shadcn@latest init:*)",
       "Bash(npx shadcn@latest add:*)",
       "Bash(npm run build:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npx drizzle-kit:*)",
+      "mcp__plugin_supabase_supabase__create_project",
+      "mcp__plugin_supabase_supabase__get_project",
+      "mcp__plugin_supabase_supabase__get_project_url",
+      "mcp__plugin_supabase_supabase__apply_migration",
+      "mcp__plugin_supabase_supabase__list_tables",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)",
+      "Bash(ls:*)",
+      "Bash(npm ls:*)",
+      "Bash(node -e:*)",
+      "Bash(npx tsx:*)",
+      "Bash(git pull:*)",
+      "Bash(find:*)"
     ]
   },
   "hooks": {
