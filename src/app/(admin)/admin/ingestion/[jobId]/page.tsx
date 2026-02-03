@@ -510,6 +510,11 @@ function ReviewTable({
   );
 }
 
+// Constants for polling
+const POLLING_INTERVAL_MS = 2000;
+const MAX_POLLING_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_POLL_ATTEMPTS = MAX_POLLING_DURATION_MS / POLLING_INTERVAL_MS;
+
 export default function IngestionReviewPage() {
   const params = useParams();
   const router = useRouter();
@@ -521,8 +526,10 @@ export default function IngestionReviewPage() {
   const [localItems, setLocalItems] = React.useState<ExtractedItem[] | null>(
     null,
   );
+  const pollCountRef = React.useRef(0);
+  const [pollingTimedOut, setPollingTimedOut] = React.useState(false);
 
-  const { data: job, isLoading } = useQuery<IngestionJob>({
+  const { data: job, isLoading, refetch } = useQuery<IngestionJob>({
     queryKey: ["ingestionJob", jobId],
     queryFn: async () => {
       const res = await fetch(`/api/admin/ingestion/${jobId}`, {
@@ -534,10 +541,17 @@ export default function IngestionReviewPage() {
     enabled: !!token && !!jobId,
     refetchInterval: (query) => {
       const data = query.state.data;
-      // Poll while pending or processing
+      // Poll while pending or processing, but with a max attempt limit
       if (data?.status === "pending" || data?.status === "processing") {
-        return 2000;
+        pollCountRef.current += 1;
+        if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
+          setPollingTimedOut(true);
+          return false;
+        }
+        return POLLING_INTERVAL_MS;
       }
+      // Reset poll count when status changes
+      pollCountRef.current = 0;
       return false;
     },
   });
@@ -589,16 +603,17 @@ export default function IngestionReviewPage() {
     },
   });
 
-  const handleItemUpdate = (
-    index: number,
-    field: keyof ExtractedItem,
-    value: string | number,
-  ) => {
-    if (!localItems) return;
-    const newItems = [...localItems];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setLocalItems(newItems);
-  };
+  const handleItemUpdate = React.useCallback(
+    (index: number, field: keyof ExtractedItem, value: string | number) => {
+      setLocalItems((prev) => {
+        if (!prev) return prev;
+        const newItems = [...prev];
+        newItems[index] = { ...newItems[index], [field]: value };
+        return newItems;
+      });
+    },
+    [],
+  );
 
   const handleApproveSelected = () => {
     const indices = Array.from(selectedIds).map(Number);
@@ -692,11 +707,37 @@ export default function IngestionReviewPage() {
       {(job.status === "pending" || job.status === "processing") && (
         <Card>
           <CardContent className="py-12 text-center">
-            <Loader2 className="size-10 mx-auto mb-4 animate-spin text-primary" />
-            <p className="text-lg font-medium">Processing PDF...</p>
-            <p className="text-muted-foreground">
-              This may take a few minutes. The page will update automatically.
-            </p>
+            {pollingTimedOut ? (
+              <>
+                <AlertTriangle className="size-10 mx-auto mb-4 text-yellow-500" />
+                <p className="text-lg font-medium">
+                  Processing is taking longer than expected
+                </p>
+                <p className="text-muted-foreground mb-4">
+                  The job may still be processing in the background.
+                </p>
+                <Button
+                  onClick={() => {
+                    pollCountRef.current = 0;
+                    setPollingTimedOut(false);
+                    refetch();
+                  }}
+                  variant="outline"
+                >
+                  <RefreshCw className="size-4 mr-2" />
+                  Check Status
+                </Button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="size-10 mx-auto mb-4 animate-spin text-primary" />
+                <p className="text-lg font-medium">Processing PDF...</p>
+                <p className="text-muted-foreground">
+                  This may take a few minutes. The page will update
+                  automatically.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
