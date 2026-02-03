@@ -15,6 +15,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const MAX_SEARCH_LENGTH = 500;
+    if (query.trim().length > MAX_SEARCH_LENGTH) {
+      return NextResponse.json(
+        { error: `Search query too long (max ${MAX_SEARCH_LENGTH} characters)` },
+        { status: 400 },
+      );
+    }
+
     const searchTerm = `%${query.trim()}%`;
 
     // Search against item name, restaurant name, and category
