@@ -113,8 +113,9 @@ export default function AdminDashboard() {
       const res = await fetch("/api/admin/ingestion/jobs?limit=5", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // If endpoint doesn't exist yet, return empty
-      if (!res.ok) return [];
+      if (!res.ok) {
+        throw new Error("Failed to fetch ingestion jobs");
+      }
       return res.json();
     },
     enabled: !!token,

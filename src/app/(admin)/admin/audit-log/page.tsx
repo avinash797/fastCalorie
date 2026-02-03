@@ -188,7 +188,9 @@ export default function AuditLogPage() {
       const res = await fetch("/api/admin/audit-log", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        throw new Error("Failed to fetch audit logs");
+      }
       const data = await res.json();
       return data.entries || [];
     },
@@ -201,7 +203,9 @@ export default function AuditLogPage() {
       const res = await fetch("/api/admin/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        throw new Error("Failed to fetch admins");
+      }
       return res.json();
     },
     enabled: !!token,

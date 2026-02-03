@@ -147,7 +147,9 @@ function IngestionPageContent() {
       const res = await fetch("/api/admin/ingestion/jobs", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        throw new Error("Failed to fetch ingestion jobs");
+      }
       return res.json();
     },
     enabled: !!token,
