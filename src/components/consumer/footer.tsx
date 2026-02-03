@@ -1,6 +1,16 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 export function Footer() {
+  // Use mounted state pattern to avoid hydration mismatch
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <footer className="w-full border-t bg-muted/50 py-12">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
@@ -26,7 +36,7 @@ export function Footer() {
               Not affiliated with any restaurant chain.
             </p>
             <div className="text-xs text-muted-foreground/50">
-              &copy; {new Date().getFullYear()} FastCalorie
+              &copy; {mounted ? new Date().getFullYear() : ""} FastCalorie
             </div>
           </div>
         </div>
