@@ -86,6 +86,7 @@ function MenuItemsPageContent() {
     React.useState<string>(preselectedRestaurantId || "");
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const deferredSearchQuery = React.useDeferredValue(searchQuery);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = React.useState<{
     id: string;
@@ -138,18 +139,18 @@ function MenuItemsPageContent() {
     return Array.from(cats).sort();
   }, [items]);
 
-  // Filter items
+  // Filter items (using deferred search query for better performance)
   const filteredItems = React.useMemo(() => {
     return items.filter((item) => {
       const matchesCategory =
         categoryFilter === "all" || item.category === categoryFilter;
       const matchesSearch =
-        searchQuery === "" ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase());
+        deferredSearchQuery === "" ||
+        item.name.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+        item.category.toLowerCase().includes(deferredSearchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [items, categoryFilter, searchQuery]);
+  }, [items, categoryFilter, deferredSearchQuery]);
 
   const updateMutation = useMutation({
     mutationFn: async ({
