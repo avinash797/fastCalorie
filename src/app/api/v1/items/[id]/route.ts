@@ -48,7 +48,11 @@ export async function GET(
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    return NextResponse.json(result[0]);
+    return NextResponse.json(result[0], {
+      headers: {
+        "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1200",
+      },
+    });
   } catch (error) {
     console.error("Error fetching item:", error);
     return NextResponse.json(

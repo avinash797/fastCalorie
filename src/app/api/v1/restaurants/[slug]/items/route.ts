@@ -50,7 +50,7 @@ export async function GET(
     if (minProtein) {
       const minProteinNum = parseFloat(minProtein);
       if (!isNaN(minProteinNum)) {
-        conditions.push(gte(menuItems.proteinG, minProteinNum.toString()));
+        conditions.push(gte(menuItems.proteinG, String(minProteinNum)));
       }
     }
 
@@ -93,15 +93,22 @@ export async function GET(
       db.select({ total: count() }).from(menuItems).where(whereClause),
     ]);
 
-    return NextResponse.json({
-      items,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    return NextResponse.json(
+      {
+        items,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      },
+    );
   } catch (error) {
     console.error("Error fetching restaurant items:", error);
     return NextResponse.json(

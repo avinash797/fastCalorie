@@ -19,7 +19,11 @@ export async function GET() {
       .where(eq(restaurants.status, "active"))
       .orderBy(asc(restaurants.name));
 
-    return NextResponse.json(results);
+    return NextResponse.json(results, {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    });
   } catch (error) {
     console.error("Error fetching restaurants:", error);
     return NextResponse.json(

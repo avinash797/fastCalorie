@@ -38,10 +38,17 @@ export async function GET(
 
     const categories = categoriesResult.map((c) => c.category);
 
-    return NextResponse.json({
-      ...restaurant,
-      categories,
-    });
+    return NextResponse.json(
+      {
+        ...restaurant,
+        categories,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      },
+    );
   } catch (error) {
     console.error("Error fetching restaurant:", error);
     return NextResponse.json(
