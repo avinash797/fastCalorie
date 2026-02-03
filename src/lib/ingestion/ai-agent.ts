@@ -1,10 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AI_SYSTEM_PROMPT, getChunkContinuationPrompt } from "./prompts";
+import { AI_SYSTEM_PROMPT, getPageContinuationPrompt } from "./prompts";
+import type { PdfPageImage } from "./extract";
 
 const anthropic = new Anthropic();
-
-const CHUNK_THRESHOLD = 100_000;
-const CHUNK_SIZE = 80_000;
 
 export interface ExtractedItem {
   name: string;
@@ -24,38 +22,6 @@ export interface ExtractedItem {
   notes: string | null;
 }
 
-function splitIntoChunks(text: string): string[] {
-  if (text.length <= CHUNK_THRESHOLD) {
-    return [text];
-  }
-
-  const chunks: string[] = [];
-  let remaining = text;
-
-  while (remaining.length > 0) {
-    if (remaining.length <= CHUNK_SIZE) {
-      chunks.push(remaining);
-      break;
-    }
-
-    // Find a double-newline boundary near the chunk size
-    let splitPoint = remaining.lastIndexOf("\n\n", CHUNK_SIZE);
-    if (splitPoint === -1 || splitPoint < CHUNK_SIZE * 0.5) {
-      // Fall back to single newline
-      splitPoint = remaining.lastIndexOf("\n", CHUNK_SIZE);
-    }
-    if (splitPoint === -1 || splitPoint < CHUNK_SIZE * 0.5) {
-      // Hard split as last resort
-      splitPoint = CHUNK_SIZE;
-    }
-
-    chunks.push(remaining.slice(0, splitPoint));
-    remaining = remaining.slice(splitPoint).trimStart();
-  }
-
-  return chunks;
-}
-
 function parseJsonFromResponse(text: string): ExtractedItem[] {
   // Try to extract JSON array from the response (handle code fences)
   const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -67,14 +33,14 @@ function parseJsonFromResponse(text: string): ExtractedItem[] {
   return items;
 }
 
-async function extractChunk(
-  chunk: string,
+async function extractFromPage(
+  pageImage: PdfPageImage,
   restaurantName: string,
   continuationPrompt?: string
 ): Promise<ExtractedItem[]> {
-  const userContent = continuationPrompt
-    ? `${continuationPrompt}\n\nRestaurant: ${restaurantName}\n\nNutrition guide text:\n\n${chunk}`
-    : `Restaurant: ${restaurantName}\n\nNutrition guide text:\n\n${chunk}`;
+  const textContent = continuationPrompt
+    ? `${continuationPrompt}\n\nRestaurant: ${restaurantName}`
+    : `Restaurant: ${restaurantName}\n\nPlease extract all menu items with their nutrition data from this page.`;
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -83,7 +49,20 @@ async function extractChunk(
     messages: [
       {
         role: "user",
-        content: userContent,
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: pageImage.mimeType,
+              data: pageImage.base64,
+            },
+          },
+          {
+            type: "text",
+            text: textContent,
+          },
+        ],
       },
     ],
   });
@@ -97,36 +76,35 @@ async function extractChunk(
 }
 
 export async function aiExtractNutritionData(
-  rawText: string,
+  pageImages: PdfPageImage[],
   restaurantName: string
 ): Promise<ExtractedItem[]> {
-  const chunks = splitIntoChunks(rawText);
-
-  if (chunks.length === 1) {
-    return extractChunk(chunks[0], restaurantName);
+  if (pageImages.length === 1) {
+    return extractFromPage(pageImages[0], restaurantName);
   }
 
-  // Multi-chunk processing
-  let allItems: ExtractedItem[] = [];
+  // Multi-page processing
+  const allItems: ExtractedItem[] = [];
   const seenNames = new Set<string>();
 
-  for (let i = 0; i < chunks.length; i++) {
+  for (let i = 0; i < pageImages.length; i++) {
     const continuationPrompt =
       i === 0
         ? undefined
-        : getChunkContinuationPrompt(
+        : getPageContinuationPrompt(
             [...new Set(allItems.map((item) => item.category))],
-            allItems.length
+            allItems.length,
+            i + 1
           );
 
-    const chunkItems = await extractChunk(
-      chunks[i],
+    const pageItems = await extractFromPage(
+      pageImages[i],
       restaurantName,
       continuationPrompt
     );
 
     // Deduplicate by name
-    for (const item of chunkItems) {
+    for (const item of pageItems) {
       if (!seenNames.has(item.name)) {
         seenNames.add(item.name);
         allItems.push(item);

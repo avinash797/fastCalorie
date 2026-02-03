@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import path from "path";
 import { db } from "@/lib/db";
 import { ingestionJobs, restaurants } from "@/lib/db/schema";
-import { extractTextFromPdf } from "./extract";
+import { extractImagesFromPdf } from "./extract";
 import { aiExtractNutritionData } from "./ai-agent";
 import { runValidation } from "./validation";
 
@@ -16,10 +16,11 @@ async function updateJobStatus(
     .where(eq(ingestionJobs.id, jobId));
 }
 
-async function saveRawText(jobId: string, rawText: string) {
+async function saveExtractionMetadata(jobId: string, pageCount: number) {
+  // Store metadata about the vision-based extraction in rawText field
   await db
     .update(ingestionJobs)
-    .set({ rawText })
+    .set({ rawText: `Vision-based extraction: ${pageCount} page(s) processed` })
     .where(eq(ingestionJobs.id, jobId));
 }
 
@@ -79,14 +80,14 @@ export async function runIngestionPipeline(jobId: string): Promise<void> {
     // Stage 1: Update status to "processing"
     await updateJobStatus(jobId, "processing");
 
-    // Stage 2: Extract text from PDF
+    // Stage 2: Convert PDF to images (vision-based approach)
     const pdfPath = path.join(process.cwd(), "public", job.pdfUrl);
-    const rawText = await extractTextFromPdf(pdfPath);
-    await saveRawText(jobId, rawText);
+    const pageImages = await extractImagesFromPdf(pdfPath);
+    await saveExtractionMetadata(jobId, pageImages.length);
 
-    // Stage 3: Send to AI agent for structuring
+    // Stage 3: Send images to AI agent for visual extraction
     const structuredData = await aiExtractNutritionData(
-      rawText,
+      pageImages,
       restaurant.name
     );
     await saveStructuredData(jobId, structuredData, structuredData.length);

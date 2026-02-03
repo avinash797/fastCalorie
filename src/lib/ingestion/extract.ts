@@ -1,22 +1,31 @@
-import fs from "fs/promises";
+import { pdf } from "pdf-to-img";
 
-export async function extractTextFromPdf(pdfPath: string): Promise<string> {
-  const buffer = await fs.readFile(pdfPath);
+export interface PdfPageImage {
+  pageNumber: number;
+  base64: string;
+  mimeType: "image/png";
+}
 
-  // Dynamic import to avoid build-time DOMMatrix errors
-  // pdf-parse v2+ uses pdfjs-dist which requires DOM polyfills
-  const { PDFParse } = await import("pdf-parse");
+export async function extractImagesFromPdf(pdfPath: string): Promise<PdfPageImage[]> {
+  const pages: PdfPageImage[] = [];
 
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  const result = await parser.getText();
+  // pdf-to-img returns an async generator of Uint8Array buffers
+  const document = await pdf(pdfPath, { scale: 2.0 }); // Scale 2.0 for better quality
 
-  const text = result.text;
-
-  if (!text || text.trim().length < 100) {
-    throw new Error(
-      "PDF appears to be scanned/image-based. Text-based PDFs are required for MVP. OCR support coming in Phase 2."
-    );
+  let pageNumber = 1;
+  for await (const imageBuffer of document) {
+    const base64 = Buffer.from(imageBuffer).toString("base64");
+    pages.push({
+      pageNumber,
+      base64,
+      mimeType: "image/png",
+    });
+    pageNumber++;
   }
 
-  return text;
+  if (pages.length === 0) {
+    throw new Error("PDF contains no pages or could not be converted to images");
+  }
+
+  return pages;
 }
