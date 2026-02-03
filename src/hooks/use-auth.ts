@@ -33,11 +33,11 @@ function setStoredToken(token: string | null) {
 }
 
 export function useAuthToken(): string | null {
-  const [token, setToken] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setToken(getStoredToken());
-  }, []);
+  // Initialize with stored token directly to avoid race condition
+  // where queries fire before useEffect sets the token
+  const [token, setToken] = React.useState<string | null>(() =>
+    getStoredToken(),
+  );
 
   return token;
 }
