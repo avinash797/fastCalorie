@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AI_SYSTEM_PROMPT, getChunkContinuationPrompt } from "./prompts";
+import { AI_SYSTEM_PROMPT } from "./prompts";
+import type { PdfDocument } from "./extract";
 
-const anthropic = new Anthropic();
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-const CHUNK_THRESHOLD = 100_000;
-const CHUNK_SIZE = 80_000;
+const anthropic = new Anthropic({
+  apiKey: ANTHROPIC_API_KEY,
+});
 
 export interface ExtractedItem {
   name: string;
@@ -24,38 +26,6 @@ export interface ExtractedItem {
   notes: string | null;
 }
 
-function splitIntoChunks(text: string): string[] {
-  if (text.length <= CHUNK_THRESHOLD) {
-    return [text];
-  }
-
-  const chunks: string[] = [];
-  let remaining = text;
-
-  while (remaining.length > 0) {
-    if (remaining.length <= CHUNK_SIZE) {
-      chunks.push(remaining);
-      break;
-    }
-
-    // Find a double-newline boundary near the chunk size
-    let splitPoint = remaining.lastIndexOf("\n\n", CHUNK_SIZE);
-    if (splitPoint === -1 || splitPoint < CHUNK_SIZE * 0.5) {
-      // Fall back to single newline
-      splitPoint = remaining.lastIndexOf("\n", CHUNK_SIZE);
-    }
-    if (splitPoint === -1 || splitPoint < CHUNK_SIZE * 0.5) {
-      // Hard split as last resort
-      splitPoint = CHUNK_SIZE;
-    }
-
-    chunks.push(remaining.slice(0, splitPoint));
-    remaining = remaining.slice(splitPoint).trimStart();
-  }
-
-  return chunks;
-}
-
 function parseJsonFromResponse(text: string): ExtractedItem[] {
   // Try to extract JSON array from the response (handle code fences)
   const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -67,72 +37,53 @@ function parseJsonFromResponse(text: string): ExtractedItem[] {
   return items;
 }
 
-async function extractChunk(
-  chunk: string,
+export async function aiExtractNutritionData(
+  pdfDocument: PdfDocument,
   restaurantName: string,
-  continuationPrompt?: string
 ): Promise<ExtractedItem[]> {
-  const userContent = continuationPrompt
-    ? `${continuationPrompt}\n\nRestaurant: ${restaurantName}\n\nNutrition guide text:\n\n${chunk}`
-    : `Restaurant: ${restaurantName}\n\nNutrition guide text:\n\n${chunk}`;
-
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 16000,
+  // Use streaming to handle long-running requests (>10 minutes)
+  // See: https://github.com/anthropics/anthropic-sdk-typescript#long-requests
+  const stream = anthropic.messages.stream({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 64000,
     system: AI_SYSTEM_PROMPT,
     messages: [
       {
         role: "user",
-        content: userContent,
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: pdfDocument.mediaType,
+              data: pdfDocument.base64,
+            },
+          },
+          {
+            type: "text",
+            text: `Restaurant: ${restaurantName}\n\nPlease extract all menu items with their nutrition data from this PDF document. Process ALL pages and extract EVERY menu item you can find.`,
+          },
+        ],
       },
     ],
   });
+
+  // Wait for the stream to complete and get the final message
+  const response = await stream.finalMessage();
 
   const text = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)
     .join("");
 
+  const fs = await import("fs/promises");
+  const path = await import("path");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const fileName = `${restaurantName.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${timestamp}.txt`;
+  const outputDir = path.join(process.cwd(), "public", "response");
+
+  await fs.mkdir(outputDir, { recursive: true });
+  await fs.writeFile(path.join(outputDir, fileName), text);
+
   return parseJsonFromResponse(text);
-}
-
-export async function aiExtractNutritionData(
-  rawText: string,
-  restaurantName: string
-): Promise<ExtractedItem[]> {
-  const chunks = splitIntoChunks(rawText);
-
-  if (chunks.length === 1) {
-    return extractChunk(chunks[0], restaurantName);
-  }
-
-  // Multi-chunk processing
-  let allItems: ExtractedItem[] = [];
-  const seenNames = new Set<string>();
-
-  for (let i = 0; i < chunks.length; i++) {
-    const continuationPrompt =
-      i === 0
-        ? undefined
-        : getChunkContinuationPrompt(
-            [...new Set(allItems.map((item) => item.category))],
-            allItems.length
-          );
-
-    const chunkItems = await extractChunk(
-      chunks[i],
-      restaurantName,
-      continuationPrompt
-    );
-
-    // Deduplicate by name
-    for (const item of chunkItems) {
-      if (!seenNames.has(item.name)) {
-        seenNames.add(item.name);
-        allItems.push(item);
-      }
-    }
-  }
-
-  return allItems;
 }

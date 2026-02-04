@@ -41,22 +41,8 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-
-interface IngestionJob {
-  id: string;
-  restaurantId: string;
-  status: "pending" | "processing" | "review" | "approved" | "failed";
-  stage: string | null;
-  pdfUrl: string | null;
-  extractedData: ExtractedItem[] | null;
-  itemsExtracted: number;
-  itemsApproved: number;
-  errorMessage: string | null;
-  createdAt: string;
-}
-
+// Matches the ExtractedItem from ai-agent.ts
 interface ExtractedItem {
-  id?: string;
   name: string;
   category: string;
   servingSize: string | null;
@@ -67,11 +53,48 @@ interface ExtractedItem {
   cholesterolMg: number | null;
   sodiumMg: number | null;
   totalCarbsG: number | null;
-  fiberG: number | null;
-  sugarG: number | null;
+  dietaryFiberG: number | null;
+  sugarsG: number | null;
   proteinG: number | null;
-  validationStatus?: "pass" | "warning" | "error";
-  validationMessages?: string[];
+  confidence: "high" | "medium" | "low";
+  notes: string | null;
+}
+
+// Matches ValidationCheck from validation.ts
+interface ValidationCheck {
+  name: string;
+  status: "pass" | "warning" | "error";
+  message: string;
+}
+
+// Matches ValidationResult from validation.ts
+interface ValidationResult {
+  itemIndex: number;
+  itemName: string;
+  status: "pass" | "warning" | "error";
+  checks: ValidationCheck[];
+}
+
+// Combined item with validation data for display
+interface DisplayItem extends ExtractedItem {
+  originalIndex: number;
+  validationStatus: "pass" | "warning" | "error";
+  validationChecks: ValidationCheck[];
+}
+
+interface IngestionJob {
+  id: string;
+  restaurantId: string;
+  status: "pending" | "processing" | "review" | "approved" | "failed";
+  stage: string | null;
+  pdfUrl: string | null;
+  structuredData: ExtractedItem[] | null;
+  validationReport: ValidationResult[] | null;
+  approvedIndexes: number[] | null;
+  itemsExtracted: number;
+  itemsApproved: number;
+  errorMessage: string | null;
+  createdAt: string;
 }
 
 interface Restaurant {
@@ -146,10 +169,38 @@ function ProgressSteps({
   );
 }
 
+function ConfidenceBadge({
+  confidence,
+}: {
+  confidence: ExtractedItem["confidence"];
+}) {
+  const variants = {
+    high: {
+      className:
+        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
+    },
+    medium: {
+      className:
+        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100",
+    },
+    low: {
+      className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100",
+    },
+  };
+
+  const variant = variants[confidence];
+
+  return (
+    <Badge variant="secondary" className={cn("capitalize", variant.className)}>
+      {confidence}
+    </Badge>
+  );
+}
+
 function ValidationBadge({
   status,
 }: {
-  status?: ExtractedItem["validationStatus"];
+  status: "pass" | "warning" | "error";
 }) {
   if (!status) return null;
 
@@ -188,7 +239,7 @@ function ReviewTable({
   onItemUpdate,
   isSaving,
 }: {
-  items: ExtractedItem[];
+  items: DisplayItem[];
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
   onItemUpdate: (
@@ -228,11 +279,11 @@ function ReviewTable({
   };
 
   const startEditing = (
-    index: number,
+    originalIndex: number,
     field: string,
     currentValue: string | number | null,
   ) => {
-    setEditingCell({ index, field });
+    setEditingCell({ index: originalIndex, field });
     setEditValue(currentValue?.toString() || "");
   };
 
@@ -286,6 +337,7 @@ function ReviewTable({
             <TableHead className="text-right hidden md:table-cell">
               Protein
             </TableHead>
+            <TableHead className="hidden lg:table-cell">Confidence</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
@@ -327,7 +379,7 @@ function ReviewTable({
                     </Button>
                   </TableCell>
                   <TableCell className="font-medium max-w-[200px] truncate">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "name" ? (
                       <Input
                         value={editValue}
@@ -343,14 +395,14 @@ function ReviewTable({
                     ) : (
                       <span
                         className="cursor-pointer hover:underline"
-                        onClick={() => startEditing(index, "name", item.name)}
+                        onClick={() => startEditing(item.originalIndex, "name", item.name)}
                       >
                         {item.name}
                       </span>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "category" ? (
                       <Input
                         value={editValue}
@@ -367,7 +419,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "category", item.category)
+                          startEditing(item.originalIndex, "category", item.category)
                         }
                       >
                         {item.category}
@@ -375,7 +427,7 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "calories" ? (
                       <Input
                         type="number"
@@ -393,7 +445,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "calories", item.calories)
+                          startEditing(item.originalIndex, "calories", item.calories)
                         }
                       >
                         {item.calories}
@@ -401,13 +453,88 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {item.totalFatG != null ? `${item.totalFatG}g` : "—"}
+                    {editingCell?.index === item.originalIndex &&
+                    editingCell?.field === "totalFatG" ? (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-7 text-sm w-16 text-right"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() =>
+                          startEditing(item.originalIndex, "totalFatG", item.totalFatG)
+                        }
+                      >
+                        {item.totalFatG != null ? `${item.totalFatG}g` : "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {item.totalCarbsG != null ? `${item.totalCarbsG}g` : "—"}
+                    {editingCell?.index === item.originalIndex &&
+                    editingCell?.field === "totalCarbsG" ? (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-7 text-sm w-16 text-right"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() =>
+                          startEditing(item.originalIndex, "totalCarbsG", item.totalCarbsG)
+                        }
+                      >
+                        {item.totalCarbsG != null ? `${item.totalCarbsG}g` : "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {item.proteinG != null ? `${item.proteinG}g` : "—"}
+                    {editingCell?.index === item.originalIndex &&
+                    editingCell?.field === "proteinG" ? (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-7 text-sm w-16 text-right"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() =>
+                          startEditing(item.originalIndex, "proteinG", item.proteinG)
+                        }
+                      >
+                        {item.proteinG != null ? `${item.proteinG}g` : "—"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <ConfidenceBadge confidence={item.confidence} />
                   </TableCell>
                   <TableCell>
                     <ValidationBadge status={item.validationStatus} />
@@ -417,86 +544,128 @@ function ReviewTable({
                 {/* Expanded row */}
                 {isExpanded && (
                   <TableRow className={rowBg}>
-                    <TableCell colSpan={9} className="bg-muted/50 p-4">
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Serving Size
-                          </p>
-                          <p className="font-medium">
-                            {item.servingSize || "—"}
-                          </p>
+                    <TableCell colSpan={10} className="bg-muted/50 p-4">
+                      <div className="space-y-4">
+                        {/* Nutritional details */}
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Serving Size
+                            </p>
+                            <p className="font-medium">
+                              {item.servingSize || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Saturated Fat
+                            </p>
+                            <p className="font-medium">
+                              {item.saturatedFatG != null
+                                ? `${item.saturatedFatG}g`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Trans Fat
+                            </p>
+                            <p className="font-medium">
+                              {item.transFatG != null
+                                ? `${item.transFatG}g`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Cholesterol
+                            </p>
+                            <p className="font-medium">
+                              {item.cholesterolMg != null
+                                ? `${item.cholesterolMg}mg`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Sodium</p>
+                            <p className="font-medium">
+                              {item.sodiumMg != null ? `${item.sodiumMg}mg` : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Fiber</p>
+                            <p className="font-medium">
+                              {item.dietaryFiberG != null ? `${item.dietaryFiberG}g` : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Sugar</p>
+                            <p className="font-medium">
+                              {item.sugarsG != null ? `${item.sugarsG}g` : "—"}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Saturated Fat
-                          </p>
-                          <p className="font-medium">
-                            {item.saturatedFatG != null
-                              ? `${item.saturatedFatG}g`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Trans Fat
-                          </p>
-                          <p className="font-medium">
-                            {item.transFatG != null
-                              ? `${item.transFatG}g`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Cholesterol
-                          </p>
-                          <p className="font-medium">
-                            {item.cholesterolMg != null
-                              ? `${item.cholesterolMg}mg`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">Sodium</p>
-                          <p className="font-medium">
-                            {item.sodiumMg != null ? `${item.sodiumMg}mg` : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">Fiber</p>
-                          <p className="font-medium">
-                            {item.fiberG != null ? `${item.fiberG}g` : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">Sugar</p>
-                          <p className="font-medium">
-                            {item.sugarG != null ? `${item.sugarG}g` : "—"}
-                          </p>
-                        </div>
-                        {item.validationMessages &&
-                          item.validationMessages.length > 0 && (
-                            <div className="sm:col-span-2 lg:col-span-4">
+
+                        {/* AI Confidence and Notes */}
+                        <div className="border-t pt-4">
+                          <div className="grid gap-4 sm:grid-cols-2 text-sm">
+                            <div>
                               <p className="text-muted-foreground mb-1">
-                                Validation Notes
+                                AI Confidence
                               </p>
-                              <ul className="list-disc list-inside text-sm">
-                                {item.validationMessages.map((msg, i) => (
-                                  <li
-                                    key={i}
-                                    className={
-                                      item.validationStatus === "error"
-                                        ? "text-destructive"
-                                        : "text-yellow-700 dark:text-yellow-400"
-                                    }
-                                  >
-                                    {msg}
-                                  </li>
-                                ))}
-                              </ul>
+                              <ConfidenceBadge confidence={item.confidence} />
                             </div>
-                          )}
+                            {item.notes && (
+                              <div>
+                                <p className="text-muted-foreground mb-1">
+                                  AI Notes
+                                </p>
+                                <p className="font-medium text-sm">
+                                  {item.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Validation Checks */}
+                        <div className="border-t pt-4">
+                          <p className="text-muted-foreground mb-2 text-sm font-medium">
+                            Validation Checks
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {item.validationChecks.map((check, i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "flex items-start gap-2 rounded-md border p-2 text-sm",
+                                  check.status === "pass" &&
+                                    "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30",
+                                  check.status === "warning" &&
+                                    "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30",
+                                  check.status === "error" &&
+                                    "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30",
+                                )}
+                              >
+                                {check.status === "pass" ? (
+                                  <CheckCircle2 className="size-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                                ) : check.status === "warning" ? (
+                                  <AlertTriangle className="size-4 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                                ) : (
+                                  <XCircle className="size-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="font-medium text-xs capitalize">
+                                    {check.name.replace(/_/g, " ")}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {check.message}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -529,7 +698,11 @@ export default function IngestionReviewPage() {
   const pollCountRef = React.useRef(0);
   const [pollingTimedOut, setPollingTimedOut] = React.useState(false);
 
-  const { data: job, isLoading, refetch } = useQuery<IngestionJob>({
+  const {
+    data: job,
+    isLoading,
+    refetch,
+  } = useQuery<IngestionJob>({
     queryKey: ["ingestionJob", jobId],
     queryFn: async () => {
       const res = await fetch(`/api/admin/ingestion/${jobId}`, {
@@ -570,12 +743,30 @@ export default function IngestionReviewPage() {
 
   // Sync local items with job data
   React.useEffect(() => {
-    if (job?.extractedData && !localItems) {
-      setLocalItems(job.extractedData);
+    if (job?.structuredData && !localItems) {
+      setLocalItems(job.structuredData);
     }
-  }, [job?.extractedData, localItems]);
+  }, [job?.structuredData, localItems]);
 
-  const items = localItems || job?.extractedData || [];
+  // Merge extracted items with validation report to create display items
+  // Filter out already-approved items
+  const items: DisplayItem[] = React.useMemo(() => {
+    const rawItems = localItems || job?.structuredData || [];
+    const validationReport = job?.validationReport || [];
+    const approvedSet = new Set(job?.approvedIndexes || []);
+
+    return rawItems
+      .map((item, index) => {
+        const validation = validationReport.find((v) => v.itemIndex === index);
+        return {
+          ...item,
+          originalIndex: index,
+          validationStatus: validation?.status || "pass",
+          validationChecks: validation?.checks || [],
+        };
+      })
+      .filter((item) => !approvedSet.has(item.originalIndex));
+  }, [localItems, job?.structuredData, job?.validationReport, job?.approvedIndexes]);
 
   const approveMutation = useMutation({
     mutationFn: async (itemIndices: number[]) => {
@@ -585,7 +776,7 @@ export default function IngestionReviewPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ itemIndices }),
+        body: JSON.stringify({ itemIndexes: itemIndices }),
       });
 
       if (!res.ok) {
@@ -600,31 +791,77 @@ export default function IngestionReviewPage() {
       queryClient.invalidateQueries({ queryKey: ["ingestionJobs"] });
       queryClient.invalidateQueries({ queryKey: ["restaurants"] });
       setSelectedIds(new Set());
+      setLocalItems(null); // Reset local state to use fresh data from server
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async ({
+      itemIndex,
+      updates,
+    }: {
+      itemIndex: number;
+      updates: Partial<ExtractedItem>;
+    }) => {
+      const res = await fetch(
+        `/api/admin/ingestion/${jobId}/items/${itemIndex}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(updates),
+        },
+      );
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Update failed");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ingestionJob", jobId] });
+      setLocalItems(null); // Reset local state to use fresh data from server
     },
   });
 
   const handleItemUpdate = React.useCallback(
-    (index: number, field: keyof ExtractedItem, value: string | number) => {
+    (originalIndex: number, field: keyof ExtractedItem, value: string | number) => {
+      // Optimistically update local state
       setLocalItems((prev) => {
-        if (!prev) return prev;
-        const newItems = [...prev];
-        newItems[index] = { ...newItems[index], [field]: value };
+        const items = prev || job?.structuredData || [];
+        const newItems = [...items];
+        newItems[originalIndex] = { ...newItems[originalIndex], [field]: value };
         return newItems;
       });
+
+      // Persist to server
+      editMutation.mutate({
+        itemIndex: originalIndex,
+        updates: { [field]: value },
+      });
     },
-    [],
+    [job?.structuredData, editMutation],
   );
 
   const handleApproveSelected = () => {
-    const indices = Array.from(selectedIds).map(Number);
-    approveMutation.mutate(indices);
+    // Map display indices back to original indices
+    const originalIndices = Array.from(selectedIds).map((displayIdx) => {
+      const item = items[Number(displayIdx)];
+      return item.originalIndex;
+    });
+    approveMutation.mutate(originalIndices);
   };
 
   const handleApproveAllPassing = () => {
-    const indices = items
-      .map((item, i) => (item.validationStatus !== "error" ? i : -1))
-      .filter((i) => i >= 0);
-    approveMutation.mutate(indices);
+    // Get original indices of all non-error items
+    const originalIndices = items
+      .filter((item) => item.validationStatus !== "error")
+      .map((item) => item.originalIndex);
+    approveMutation.mutate(originalIndices);
   };
 
   if (isLoading) {

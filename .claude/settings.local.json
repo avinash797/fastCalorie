@@ -30,7 +30,9 @@
       "Bash(npx tsx:*)",
       "Bash(git pull:*)",
       "Bash(find:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(cat:*)",
+      "Bash(npx dotenv:*)"
     ]
   },
   "hooks": {

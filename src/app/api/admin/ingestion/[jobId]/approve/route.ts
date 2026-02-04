@@ -79,9 +79,20 @@ export const POST = withAuth(
         );
       }
 
-      // Create menu_items records for each approved item
+      // Filter out already-approved items to prevent duplicates
+      const existingApproved = new Set((job.approvedIndexes as number[]) || []);
+      const newItemIndexes = itemIndexes.filter((idx) => !existingApproved.has(idx));
+
+      if (newItemIndexes.length === 0) {
+        return NextResponse.json(
+          { error: "All selected items have already been approved" },
+          { status: 400 }
+        );
+      }
+
+      // Create menu_items records for each approved item (only new ones)
       const createdItems: string[] = [];
-      for (const idx of itemIndexes) {
+      for (const idx of newItemIndexes) {
         const item = structuredData[idx];
         const [created] = await db
           .insert(menuItems)
@@ -126,7 +137,7 @@ export const POST = withAuth(
 
       if (restaurant) {
         const updates: Record<string, unknown> = {
-          itemCount: sql`${restaurants.itemCount} + ${itemIndexes.length}`,
+          itemCount: sql`${restaurants.itemCount} + ${newItemIndexes.length}`,
           lastIngestionAt: new Date(),
         };
 
@@ -141,12 +152,14 @@ export const POST = withAuth(
       }
 
       // Update ingestion job
-      const newApprovedCount = (job.itemsApproved ?? 0) + itemIndexes.length;
+      const newApprovedIndexes = [...new Set([...existingApproved, ...newItemIndexes])];
+      const newApprovedCount = newApprovedIndexes.length;
       const allApproved = newApprovedCount >= structuredData.length;
 
       await db
         .update(ingestionJobs)
         .set({
+          approvedIndexes: newApprovedIndexes,
           itemsApproved: newApprovedCount,
           status: allApproved ? "approved" : "review",
           completedAt: allApproved ? new Date() : undefined,
@@ -159,18 +172,19 @@ export const POST = withAuth(
         entityId: jobId,
         action: "approve",
         afterData: {
-          approvedIndexes: itemIndexes,
-          approvedCount: itemIndexes.length,
+          approvedIndexes: newItemIndexes,
+          approvedCount: newItemIndexes.length,
           totalApproved: newApprovedCount,
         },
       });
 
       return NextResponse.json({
-        approved: itemIndexes.length,
+        approved: newItemIndexes.length,
         totalApproved: newApprovedCount,
         totalItems: structuredData.length,
         status: allApproved ? "approved" : "review",
         createdItemIds: createdItems,
+        approvedIndexes: newApprovedIndexes,
       });
     } catch (error) {
       console.error("Approve error:", error);

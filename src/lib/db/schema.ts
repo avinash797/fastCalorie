@@ -129,6 +129,7 @@ export const ingestionJobs = pgTable("ingestion_jobs", {
   rawText: text("raw_text"),
   structuredData: jsonb("structured_data"),
   validationReport: jsonb("validation_report"),
+  approvedIndexes: jsonb("approved_indexes").$type<number[]>().default([]),
   itemsExtracted: integer("items_extracted").notNull().default(0),
   itemsApproved: integer("items_approved").notNull().default(0),
   errorLog: text("error_log"),
