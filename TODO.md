@@ -108,15 +108,15 @@
 
 ---
 
-## P9: Polish, Performance & Deploy (0/7)
+## P9: Polish, Performance & Deploy (5/7)
 
 - [ ] **Meet performance targets** — Lighthouse Performance >= 90 on home/restaurant/item pages. LCP < 1.5s, CLS < 0.1, FID < 100ms. `/api/v1/all-items` response < 500ms. Client-side search < 50ms.
-- [ ] **Implement caching strategy** — Consumer endpoints: `Cache-Control: public, s-maxage=300, stale-while-revalidate=600` for restaurants/restaurant detail/all-items. Items: `s-maxage=600, stale-while-revalidate=1200`. Admin endpoints: `Cache-Control: no-store`.
-- [ ] **Add error handling** — All API routes: top-level try/catch, consistent error shape `{error: string, details?: unknown}`. Consumer pages: friendly error states. Admin pages: detailed error messages.
-- [ ] **Add loading states** — Every data-fetching page: skeleton/shimmer UI (not spinners). Search: subtle loading indicator during debounce. Ingestion review: progress steps during pipeline.
-- [ ] **Create 404 and error pages** — `src/app/not-found.tsx`: custom 404 with search bar + home link. `src/app/error.tsx`: custom error page with retry button.
+- [x] **Implement caching strategy** — Consumer endpoints: `Cache-Control: public, s-maxage=300, stale-while-revalidate=600` for restaurants/restaurant detail/all-items. Items: `s-maxage=600, stale-while-revalidate=1200`. Admin endpoints: `Cache-Control: no-store`.
+- [x] **Add error handling** — All API routes: top-level try/catch, consistent error shape `{error: string, details?: unknown}`. Consumer pages: friendly error states. Admin pages: detailed error messages.
+- [x] **Add loading states** — Every data-fetching page: skeleton/shimmer UI (not spinners). Search: subtle loading indicator during debounce. Ingestion review: progress steps during pipeline.
+- [x] **Create 404 and error pages** — `src/app/not-found.tsx`: custom 404 with search bar + home link. `src/app/error.tsx`: custom error page with retry button.
 - [ ] **Deploy to Vercel** — Connect GitHub repo, set env vars (DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY, NEXT_PUBLIC_APP_URL). Build command: `npm run build`, output: `.next`. Create Neon/Supabase PostgreSQL instance, run migrations, seed admin. Post-deploy: verify home page, admin login, PDF ingestion, search, all restaurant/item pages, mobile layout.
-- [ ] **Set up CI/CD** — GitHub Actions workflow: on push/PR, checkout, setup Node 20, `npm ci`, `npm run build`, `npm run lint`. Type checking and linting on every push.
+- [x] **Set up CI/CD** — GitHub Actions workflow: on push/PR, checkout, setup Node 20, `npm ci`, `npm run build`, `npm run lint`. Type checking and linting on every push.
 
 ---
 
