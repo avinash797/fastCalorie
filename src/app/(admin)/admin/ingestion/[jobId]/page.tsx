@@ -41,22 +41,8 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-
-interface IngestionJob {
-  id: string;
-  restaurantId: string;
-  status: "pending" | "processing" | "review" | "approved" | "failed";
-  stage: string | null;
-  pdfUrl: string | null;
-  extractedData: ExtractedItem[] | null;
-  itemsExtracted: number;
-  itemsApproved: number;
-  errorMessage: string | null;
-  createdAt: string;
-}
-
+// Matches the ExtractedItem from ai-agent.ts
 interface ExtractedItem {
-  id?: string;
   name: string;
   category: string;
   servingSize: string | null;
@@ -67,11 +53,46 @@ interface ExtractedItem {
   cholesterolMg: number | null;
   sodiumMg: number | null;
   totalCarbsG: number | null;
-  fiberG: number | null;
-  sugarG: number | null;
+  dietaryFiberG: number | null;
+  sugarsG: number | null;
   proteinG: number | null;
-  validationStatus?: "pass" | "warning" | "error";
-  validationMessages?: string[];
+  confidence: "high" | "medium" | "low";
+  notes: string | null;
+}
+
+// Matches ValidationCheck from validation.ts
+interface ValidationCheck {
+  name: string;
+  status: "pass" | "warning" | "error";
+  message: string;
+}
+
+// Matches ValidationResult from validation.ts
+interface ValidationResult {
+  itemIndex: number;
+  itemName: string;
+  status: "pass" | "warning" | "error";
+  checks: ValidationCheck[];
+}
+
+// Combined item with validation data for display
+interface DisplayItem extends ExtractedItem {
+  validationStatus: "pass" | "warning" | "error";
+  validationChecks: ValidationCheck[];
+}
+
+interface IngestionJob {
+  id: string;
+  restaurantId: string;
+  status: "pending" | "processing" | "review" | "approved" | "failed";
+  stage: string | null;
+  pdfUrl: string | null;
+  structuredData: ExtractedItem[] | null;
+  validationReport: ValidationResult[] | null;
+  itemsExtracted: number;
+  itemsApproved: number;
+  errorMessage: string | null;
+  createdAt: string;
 }
 
 interface Restaurant {
@@ -146,10 +167,38 @@ function ProgressSteps({
   );
 }
 
+function ConfidenceBadge({
+  confidence,
+}: {
+  confidence: ExtractedItem["confidence"];
+}) {
+  const variants = {
+    high: {
+      className:
+        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
+    },
+    medium: {
+      className:
+        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100",
+    },
+    low: {
+      className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100",
+    },
+  };
+
+  const variant = variants[confidence];
+
+  return (
+    <Badge variant="secondary" className={cn("capitalize", variant.className)}>
+      {confidence}
+    </Badge>
+  );
+}
+
 function ValidationBadge({
   status,
 }: {
-  status?: ExtractedItem["validationStatus"];
+  status: "pass" | "warning" | "error";
 }) {
   if (!status) return null;
 
@@ -188,7 +237,7 @@ function ReviewTable({
   onItemUpdate,
   isSaving,
 }: {
-  items: ExtractedItem[];
+  items: DisplayItem[];
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
   onItemUpdate: (
@@ -286,6 +335,7 @@ function ReviewTable({
             <TableHead className="text-right hidden md:table-cell">
               Protein
             </TableHead>
+            <TableHead className="hidden lg:table-cell">Confidence</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
@@ -409,6 +459,9 @@ function ReviewTable({
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
                     {item.proteinG != null ? `${item.proteinG}g` : "—"}
                   </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <ConfidenceBadge confidence={item.confidence} />
+                  </TableCell>
                   <TableCell>
                     <ValidationBadge status={item.validationStatus} />
                   </TableCell>
@@ -417,86 +470,128 @@ function ReviewTable({
                 {/* Expanded row */}
                 {isExpanded && (
                   <TableRow className={rowBg}>
-                    <TableCell colSpan={9} className="bg-muted/50 p-4">
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Serving Size
-                          </p>
-                          <p className="font-medium">
-                            {item.servingSize || "—"}
-                          </p>
+                    <TableCell colSpan={10} className="bg-muted/50 p-4">
+                      <div className="space-y-4">
+                        {/* Nutritional details */}
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Serving Size
+                            </p>
+                            <p className="font-medium">
+                              {item.servingSize || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Saturated Fat
+                            </p>
+                            <p className="font-medium">
+                              {item.saturatedFatG != null
+                                ? `${item.saturatedFatG}g`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Trans Fat
+                            </p>
+                            <p className="font-medium">
+                              {item.transFatG != null
+                                ? `${item.transFatG}g`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">
+                              Cholesterol
+                            </p>
+                            <p className="font-medium">
+                              {item.cholesterolMg != null
+                                ? `${item.cholesterolMg}mg`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Sodium</p>
+                            <p className="font-medium">
+                              {item.sodiumMg != null ? `${item.sodiumMg}mg` : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Fiber</p>
+                            <p className="font-medium">
+                              {item.dietaryFiberG != null ? `${item.dietaryFiberG}g` : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Sugar</p>
+                            <p className="font-medium">
+                              {item.sugarsG != null ? `${item.sugarsG}g` : "—"}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Saturated Fat
-                          </p>
-                          <p className="font-medium">
-                            {item.saturatedFatG != null
-                              ? `${item.saturatedFatG}g`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Trans Fat
-                          </p>
-                          <p className="font-medium">
-                            {item.transFatG != null
-                              ? `${item.transFatG}g`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">
-                            Cholesterol
-                          </p>
-                          <p className="font-medium">
-                            {item.cholesterolMg != null
-                              ? `${item.cholesterolMg}mg`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">Sodium</p>
-                          <p className="font-medium">
-                            {item.sodiumMg != null ? `${item.sodiumMg}mg` : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">Fiber</p>
-                          <p className="font-medium">
-                            {item.fiberG != null ? `${item.fiberG}g` : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground mb-1">Sugar</p>
-                          <p className="font-medium">
-                            {item.sugarG != null ? `${item.sugarG}g` : "—"}
-                          </p>
-                        </div>
-                        {item.validationMessages &&
-                          item.validationMessages.length > 0 && (
-                            <div className="sm:col-span-2 lg:col-span-4">
+
+                        {/* AI Confidence and Notes */}
+                        <div className="border-t pt-4">
+                          <div className="grid gap-4 sm:grid-cols-2 text-sm">
+                            <div>
                               <p className="text-muted-foreground mb-1">
-                                Validation Notes
+                                AI Confidence
                               </p>
-                              <ul className="list-disc list-inside text-sm">
-                                {item.validationMessages.map((msg, i) => (
-                                  <li
-                                    key={i}
-                                    className={
-                                      item.validationStatus === "error"
-                                        ? "text-destructive"
-                                        : "text-yellow-700 dark:text-yellow-400"
-                                    }
-                                  >
-                                    {msg}
-                                  </li>
-                                ))}
-                              </ul>
+                              <ConfidenceBadge confidence={item.confidence} />
                             </div>
-                          )}
+                            {item.notes && (
+                              <div>
+                                <p className="text-muted-foreground mb-1">
+                                  AI Notes
+                                </p>
+                                <p className="font-medium text-sm">
+                                  {item.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Validation Checks */}
+                        <div className="border-t pt-4">
+                          <p className="text-muted-foreground mb-2 text-sm font-medium">
+                            Validation Checks
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {item.validationChecks.map((check, i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "flex items-start gap-2 rounded-md border p-2 text-sm",
+                                  check.status === "pass" &&
+                                    "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30",
+                                  check.status === "warning" &&
+                                    "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30",
+                                  check.status === "error" &&
+                                    "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30",
+                                )}
+                              >
+                                {check.status === "pass" ? (
+                                  <CheckCircle2 className="size-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                                ) : check.status === "warning" ? (
+                                  <AlertTriangle className="size-4 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                                ) : (
+                                  <XCircle className="size-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="font-medium text-xs capitalize">
+                                    {check.name.replace(/_/g, " ")}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {check.message}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -529,7 +624,11 @@ export default function IngestionReviewPage() {
   const pollCountRef = React.useRef(0);
   const [pollingTimedOut, setPollingTimedOut] = React.useState(false);
 
-  const { data: job, isLoading, refetch } = useQuery<IngestionJob>({
+  const {
+    data: job,
+    isLoading,
+    refetch,
+  } = useQuery<IngestionJob>({
     queryKey: ["ingestionJob", jobId],
     queryFn: async () => {
       const res = await fetch(`/api/admin/ingestion/${jobId}`, {
@@ -570,12 +669,25 @@ export default function IngestionReviewPage() {
 
   // Sync local items with job data
   React.useEffect(() => {
-    if (job?.extractedData && !localItems) {
-      setLocalItems(job.extractedData);
+    if (job?.structuredData && !localItems) {
+      setLocalItems(job.structuredData);
     }
-  }, [job?.extractedData, localItems]);
+  }, [job?.structuredData, localItems]);
 
-  const items = localItems || job?.extractedData || [];
+  // Merge extracted items with validation report to create display items
+  const items: DisplayItem[] = React.useMemo(() => {
+    const rawItems = localItems || job?.structuredData || [];
+    const validationReport = job?.validationReport || [];
+
+    return rawItems.map((item, index) => {
+      const validation = validationReport.find((v) => v.itemIndex === index);
+      return {
+        ...item,
+        validationStatus: validation?.status || "pass",
+        validationChecks: validation?.checks || [],
+      };
+    });
+  }, [localItems, job?.structuredData, job?.validationReport]);
 
   const approveMutation = useMutation({
     mutationFn: async (itemIndices: number[]) => {
