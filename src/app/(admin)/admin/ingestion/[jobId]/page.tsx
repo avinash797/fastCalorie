@@ -451,13 +451,85 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {item.totalFatG != null ? `${item.totalFatG}g` : "—"}
+                    {editingCell?.index === index &&
+                    editingCell?.field === "totalFatG" ? (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-7 text-sm w-16 text-right"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() =>
+                          startEditing(index, "totalFatG", item.totalFatG)
+                        }
+                      >
+                        {item.totalFatG != null ? `${item.totalFatG}g` : "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {item.totalCarbsG != null ? `${item.totalCarbsG}g` : "—"}
+                    {editingCell?.index === index &&
+                    editingCell?.field === "totalCarbsG" ? (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-7 text-sm w-16 text-right"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() =>
+                          startEditing(index, "totalCarbsG", item.totalCarbsG)
+                        }
+                      >
+                        {item.totalCarbsG != null ? `${item.totalCarbsG}g` : "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {item.proteinG != null ? `${item.proteinG}g` : "—"}
+                    {editingCell?.index === index &&
+                    editingCell?.field === "proteinG" ? (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-7 text-sm w-16 text-right"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() =>
+                          startEditing(index, "proteinG", item.proteinG)
+                        }
+                      >
+                        {item.proteinG != null ? `${item.proteinG}g` : "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <ConfidenceBadge confidence={item.confidence} />
