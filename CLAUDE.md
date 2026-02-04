@@ -8,7 +8,7 @@ FastCalorie is a fast food nutrition aggregation platform. Admin users upload re
 
 **Authoritative spec:** `FastCalorie_MVP_Development_Plan.md` contains all detailed requirements, schemas, API contracts, and validation rules. Always consult it for specifics.
 
-**Task tracker:** `TODO.md` tracks implementation progress across 10 priority phases (P0–P9).
+**Task tracker:** `TODO.md` tracks implementation progress across 13 priority phases (P0–P12).
 
 ## Build & Development Commands
 
@@ -33,7 +33,7 @@ npx tsx scripts/seed-admin.ts
 - **Database:** PostgreSQL 16 via Drizzle ORM
 - **Auth:** Custom JWT (bcrypt + jsonwebtoken), 24h expiry, httpOnly cookies
 - **AI:** Anthropic Claude (claude-sonnet-4-20250514) for PDF nutrition extraction
-- **PDF:** pdf-parse (Node.js, text-based PDFs only for MVP)
+- **PDF:** Claude Vision API (direct PDF-to-LLM, supports text and scanned PDFs)
 - **Validation:** Zod (shared client/server schemas)
 - **UI:** Tailwind CSS 4 + shadcn/ui
 - **Search:** Fuse.js client-side fuzzy search against cached all-items endpoint
@@ -43,8 +43,9 @@ npx tsx scripts/seed-admin.ts
 ## Architecture
 
 ### Route Structure
-- `src/app/(consumer)/` — Public pages (home/search, restaurant browse, item detail)
-- `src/app/(admin)/admin/` — Protected admin pages (login, dashboard, restaurants, ingestion, items, audit log, users)
+- `src/app/(consumer)/` — Public pages (home/search, restaurant browse, item detail, blog)
+- `src/app/(marketing)/` — Marketing landing page (planned P10)
+- `src/app/(admin)/admin/` — Protected admin pages (login, dashboard, restaurants, ingestion, items, audit log, users, blog management)
 - `src/app/api/admin/` — Admin API endpoints (JWT-protected via `withAuth`)
 - `src/app/api/v1/` — Public consumer API (read-only, cached)
 
@@ -57,7 +58,9 @@ npx tsx scripts/seed-admin.ts
 - `src/middleware.ts` — Next.js middleware protecting `/admin/*` routes (UX-level; real auth is `withAuth`)
 
 ### PDF Ingestion Pipeline
-Upload → create job (status: pending) → async fire-and-forget: extract text → Claude AI structuring → 9-point validation → status: review → admin reviews/edits inline → approve → create menu_items records. Frontend polls job status every 2s during processing.
+Upload → create job (status: pending) → async fire-and-forget: send PDF to Claude Vision API → AI extracts structured nutrition data → 9-point validation → status: review → admin reviews/edits inline → approve → create menu_items records. Frontend polls job status every 2s during processing.
+
+**Page-by-page processing (P12):** For large PDFs, the pipeline splits the document into individual pages, processes each page in parallel (concurrency limit 5), then merges and deduplicates results. This keeps context windows small and improves reliability.
 
 ### Consumer Search Flow
 Home page fetches `/api/v1/all-items` (all items, cached 5 min) → initializes Fuse.js → debounced 150ms client-side search (<50ms target).

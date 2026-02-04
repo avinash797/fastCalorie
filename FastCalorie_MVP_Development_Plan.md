@@ -19,10 +19,13 @@
 11. [Priority 7 — Consumer Frontend](#11-priority-7--consumer-frontend)
 12. [Priority 8 — Data Seeding & QA](#12-priority-8--data-seeding--qa)
 13. [Priority 9 — Polish, Performance & Deploy](#13-priority-9--polish-performance--deploy)
-14. [File Tree Reference](#14-file-tree-reference)
-15. [Environment Variables](#15-environment-variables)
-16. [Validation Rules Reference](#16-validation-rules-reference)
-17. [AI Prompt Templates](#17-ai-prompt-templates)
+14. [Priority 10 — Marketing Landing Page](#14-priority-10--marketing-landing-page)
+15. [Priority 11 — Blog & SEO Content System](#15-priority-11--blog--seo-content-system)
+16. [Priority 12 — Page-by-Page PDF Pipeline](#16-priority-12--page-by-page-pdf-pipeline)
+17. [File Tree Reference](#17-file-tree-reference)
+18. [Environment Variables](#18-environment-variables)
+19. [Validation Rules Reference](#19-validation-rules-reference)
+20. [AI Prompt Templates](#20-ai-prompt-templates)
 
 ---
 
@@ -114,7 +117,7 @@ P3 and P4 can be built in parallel since they share the same database layer (P1)
 | Auth | Custom JWT | — | Simple for admin-only auth; no OAuth needed for MVP |
 | Password hashing | bcrypt | latest | Industry standard for password storage |
 | File storage | Local filesystem (MVP) | — | `/uploads` dir; swap to S3/R2 in Phase 2 |
-| PDF text extraction | `pdf-parse` (Node) | latest | Handles text-based PDFs without Python sidecar |
+| PDF processing | Claude Vision API | — | Direct PDF-to-LLM: send PDF pages as images for extraction, no text parsing needed |
 | AI extraction | Anthropic Claude API | claude-sonnet-4-20250514 | Best doc understanding; cost-effective for extraction |
 | Validation | Zod | latest | Runtime schema validation, shared between client/server |
 | State management | React Query (TanStack Query) | 5.x | Server state caching, auto refetch |
@@ -123,7 +126,7 @@ P3 and P4 can be built in parallel since they share the same database layer (P1)
 
 ### Key decisions
 
-- **No Python sidecar for MVP.** Use `pdf-parse` (Node.js) for text extraction. It handles >90% of text-based nutrition PDFs. Add `pdfplumber` Python sidecar in Phase 2 for scanned/image PDFs.
+- **Direct PDF-to-LLM via Vision API.** Send PDF pages directly to Claude's vision API for extraction. This handles both text-based and scanned/image PDFs without text parsing. Pages are processed individually to manage context window size (see P12 for page-by-page pipeline).
 - **No dedicated search engine for MVP.** With <5,000 items, fetch all items on first load, cache in memory, search client-side with a library like `fuse.js`. This gives sub-50ms search with zero server round trips.
 - **Local file storage for MVP.** PDFs and logos stored in `/public/uploads`. Migration to S3/R2 is a single abstraction swap later.
 - **Single Next.js app for both consumer and admin.** Admin pages live under `/admin/*` route group, protected by middleware. No separate deployment.
@@ -764,28 +767,56 @@ export async function runIngestionPipeline(jobId: string): Promise<void> {
 }
 ```
 
-### 8.3 Stage 2: PDF text extraction
+### 8.3 Stage 2: PDF processing via Vision API
 
 `src/lib/ingestion/extract.ts`:
 
+**Direct PDF-to-LLM approach:** Instead of extracting text from PDFs, we now send the PDF directly to Claude's vision API. The PDF is converted to base64 and passed as a document input. Claude can read both text-based and scanned/image-based PDFs natively.
+
 ```typescript
-import pdf from "pdf-parse";
+import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs/promises";
 
-export async function extractTextFromPdf(pdfPath: string): Promise<string> {
-  const buffer = await fs.readFile(pdfPath);
-  const data = await pdf(buffer);
-  return data.text;
+const anthropic = new Anthropic();
+
+export async function extractFromPdfVision(pdfPath: string): Promise<ExtractedItem[]> {
+  const pdfBuffer = await fs.readFile(pdfPath);
+  const pdfBase64 = pdfBuffer.toString("base64");
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 16000,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: pdfBase64,
+          },
+        },
+        {
+          type: "text",
+          text: "Extract all nutrition data from this PDF...", // Full prompt from prompts.ts
+        },
+      ],
+    }],
+  });
+
+  // Parse JSON response
+  // ...
 }
 ```
 
-If `data.text` is empty or very short (<100 chars), the PDF is likely scanned/image-based. For MVP, set the job to failed with a message: "PDF appears to be scanned/image-based. Text-based PDFs are required for MVP. OCR support coming in Phase 2."
+**Note:** For large PDFs, see P12 (Page-by-Page Pipeline) for the chunking strategy that processes each page individually to manage context window size.
 
-### 8.4 Stage 3: AI structuring agent
+### 8.4 Stage 3: AI extraction with Vision API
 
 `src/lib/ingestion/ai-agent.ts`:
 
-Use the Anthropic SDK to send the extracted text to Claude with a structured prompt.
+With the vision-based approach, PDF extraction and AI structuring are combined into a single step. The PDF is sent directly to Claude which extracts and structures the nutrition data in one pass.
 
 ```typescript
 import Anthropic from "@anthropic-ai/sdk";
@@ -811,7 +842,7 @@ export interface ExtractedItem {
 }
 
 export async function aiExtractNutritionData(
-  rawText: string,
+  pdfBase64: string,
   restaurantName: string
 ): Promise<ExtractedItem[]> {
   const response = await anthropic.messages.create({
@@ -821,7 +852,20 @@ export async function aiExtractNutritionData(
     messages: [
       {
         role: "user",
-        content: `Restaurant: ${restaurantName}\n\nNutrition guide text:\n\n${rawText}`
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: pdfBase64,
+            },
+          },
+          {
+            type: "text",
+            text: `Restaurant: ${restaurantName}\n\nExtract all nutrition data from this PDF.`
+          }
+        ],
       }
     ],
   });
@@ -843,7 +887,7 @@ export async function aiExtractNutritionData(
 
 For the full `AI_SYSTEM_PROMPT`, see [Section 17: AI Prompt Templates](#17-ai-prompt-templates).
 
-**Chunking strategy for large PDFs:** If `rawText` exceeds 100,000 characters, split it at double-newline boundaries into chunks of ~80,000 characters each. Process each chunk with the AI separately, passing the running list of discovered categories to each subsequent call for consistency. Merge results at the end, deduplicating by item name.
+**Page-by-page processing for large PDFs:** See [Priority 12](#priority-12--page-by-page-pdf-pipeline) for the improved pipeline that processes each page individually to manage context window size and reduce token usage.
 
 ### 8.5 Stage 4: Validation engine
 
@@ -1405,7 +1449,667 @@ Type checking and linting on every push. No automated tests for MVP (add in Phas
 
 ---
 
-## 14. File Tree Reference
+## 14. Priority 10 — Marketing Landing Page
+
+**Depends on:** P0, P7 (consumer frontend exists)
+**Produces:** High-conversion marketing landing page for user acquisition
+
+### 14.1 Purpose
+
+Create a dedicated marketing landing page separate from the app's home page. This page targets new visitors, explains the value proposition, and drives conversions (app usage, newsletter signups for future features).
+
+### 14.2 Landing page structure
+
+**`src/app/(marketing)/page.tsx`** — New route group for marketing pages
+
+The landing page should include these sections in order:
+
+**Hero section:**
+- Headline: Clear value proposition (e.g., "Find the healthiest fast food in seconds")
+- Subheadline: Brief explanation of what FastCalorie does
+- Primary CTA button: "Search Now" → links to `/` (the app home page)
+- Secondary CTA: "See All Restaurants" → links to `/restaurants`
+- Hero image or illustration showing the app in use
+
+**Problem/Solution section:**
+- Pain point: "Eating healthy at fast food restaurants is confusing"
+- Solution: "FastCalorie aggregates nutrition data from 15+ chains in one searchable interface"
+- 3-4 benefit bullets with icons
+
+**How it works section:**
+- Step 1: Search for any item or restaurant
+- Step 2: Compare calories, protein, carbs, and fat
+- Step 3: Make informed choices
+- Visual diagram or screenshots
+
+**Restaurant showcase:**
+- Grid of restaurant logos (reuse from home page)
+- Count: "Nutrition data from X restaurants and Y+ menu items"
+
+**Feature highlights:**
+- Instant client-side search (<50ms)
+- Official nutrition data from restaurant sources
+- Full macro breakdown (protein, carbs, fat)
+- Mobile-friendly design
+
+**Social proof section (future):**
+- Placeholder for testimonials
+- "Trusted by X users" counter (implement tracking in Phase 2)
+
+**FAQ section:**
+- "Where does the data come from?" → Official restaurant nutrition guides
+- "How often is data updated?" → Regularly via admin pipeline
+- "Is this free?" → Yes, completely free
+
+**Footer CTA:**
+- Final call-to-action with search bar
+- Newsletter signup (email capture for Phase 2 features)
+
+### 14.3 Design specifications
+
+- **Layout:** Full-width sections with alternating backgrounds (white, light gray)
+- **Typography:** Large headings (48-64px), readable body (18-20px)
+- **Colors:** Maintain brand orange (#E85D26) for CTAs, clean white/gray palette
+- **Responsive:** Mobile-first, sections stack vertically on mobile
+- **Performance:** Lazy-load below-fold images, optimize hero for LCP
+
+### 14.4 SEO optimization
+
+- **Title:** "FastCalorie — Fast Food Nutrition Search | Calories, Macros & More"
+- **Meta description:** "Search nutrition facts for McDonald's, Chick-fil-A, Wendy's and 15+ fast food chains. Find calories, protein, carbs and fat for any menu item instantly."
+- **Open Graph:** Custom OG image for social sharing
+- **Structured data:** WebSite schema with SearchAction
+
+### 14.5 Components to create
+
+```
+src/components/marketing/
+├── hero-section.tsx
+├── problem-solution.tsx
+├── how-it-works.tsx
+├── restaurant-showcase.tsx
+├── feature-highlights.tsx
+├── faq-section.tsx
+├── footer-cta.tsx
+└── newsletter-signup.tsx
+```
+
+### 14.6 Verification
+
+- Landing page loads at `/landing` (or configure as default for first-time visitors)
+- All sections render correctly on mobile and desktop
+- CTAs link to correct destinations
+- Page passes Lighthouse SEO audit
+- OG image displays correctly when shared on social media
+
+---
+
+## 15. Priority 11 — Blog & SEO Content System
+
+**Depends on:** P0, P1 (database), P2 (admin auth)
+**Produces:** Blog system for publishing SEO-optimized content
+
+### 15.1 Purpose
+
+Create a blog system to publish content targeting nutrition-related keywords. This drives organic search traffic and establishes domain authority. Content types include:
+- Restaurant nutrition guides ("Complete McDonald's Nutrition Guide 2024")
+- Comparison articles ("Healthiest Fast Food Burgers Ranked")
+- Diet-specific guides ("Keto-Friendly Fast Food Options")
+- Seasonal content ("Low-Calorie Summer Fast Food Picks")
+
+### 15.2 Database schema additions
+
+Add to `src/lib/db/schema.ts`:
+
+```typescript
+export const blogPostStatusEnum = pgEnum("blog_post_status", [
+  "draft", "published", "archived"
+]);
+
+export const blogPosts = pgTable("blog_posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  title: varchar("title", { length: 500 }).notNull(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(), // Markdown content
+  featuredImageUrl: varchar("featured_image_url", { length: 512 }),
+  authorId: uuid("author_id").notNull().references(() => admins.id),
+  status: blogPostStatusEnum("status").notNull().default("draft"),
+  metaTitle: varchar("meta_title", { length: 70 }),
+  metaDescription: varchar("meta_description", { length: 160 }),
+  keywords: text("keywords"), // Comma-separated
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("blog_posts_slug_idx").on(table.slug),
+  index("blog_posts_status_idx").on(table.status),
+  index("blog_posts_published_idx").on(table.publishedAt),
+]);
+
+export const blogCategories = pgTable("blog_categories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const blogPostCategories = pgTable("blog_post_categories", {
+  postId: uuid("post_id").notNull().references(() => blogPosts.id, { onDelete: "cascade" }),
+  categoryId: uuid("category_id").notNull().references(() => blogCategories.id, { onDelete: "cascade" }),
+}, (table) => [
+  index("blog_post_categories_post_idx").on(table.postId),
+  index("blog_post_categories_category_idx").on(table.categoryId),
+]);
+```
+
+### 15.3 Admin API endpoints
+
+**`src/app/api/admin/blog/posts/route.ts`**
+- GET: List all posts (with pagination, status filter)
+- POST: Create new post (validate with Zod schema)
+
+**`src/app/api/admin/blog/posts/[id]/route.ts`**
+- GET: Single post
+- PUT: Update post
+- DELETE: Soft-delete (set status="archived")
+
+**`src/app/api/admin/blog/categories/route.ts`**
+- GET: List categories
+- POST: Create category
+
+**`src/app/api/admin/blog/upload/route.ts`**
+- POST: Upload featured image (store in `public/uploads/blog/`)
+
+### 15.4 Admin UI pages
+
+**`src/app/(admin)/admin/blog/page.tsx`**
+- Table of all posts: Title, Status, Categories, Published Date, Author
+- "New Post" button
+- Status filter tabs: All / Draft / Published / Archived
+
+**`src/app/(admin)/admin/blog/[id]/page.tsx`**
+- Post editor with:
+  - Title input
+  - Slug input (auto-generated from title)
+  - Markdown editor (use a simple textarea for MVP, or integrate a markdown editor component)
+  - Excerpt input
+  - Featured image upload
+  - Category multi-select
+  - SEO fields: meta title, meta description, keywords
+  - Status toggle (Draft/Published)
+  - Publish/Save buttons
+
+**`src/app/(admin)/admin/blog/categories/page.tsx`**
+- Category management: list, create, edit
+
+### 15.5 Consumer blog routes
+
+**`src/app/(consumer)/blog/page.tsx`**
+- Blog index page with:
+  - Featured/latest post hero
+  - Grid of recent posts (card: featured image, title, excerpt, date)
+  - Category filter sidebar/pills
+  - Pagination
+
+**`src/app/(consumer)/blog/[slug]/page.tsx`**
+- Individual blog post page:
+  - Title, author, publish date
+  - Featured image
+  - Markdown content rendered to HTML (use `react-markdown` or similar)
+  - Category tags
+  - Related posts section (same category)
+  - CTA: "Search for [restaurant] items" if post mentions specific restaurants
+
+**`src/app/(consumer)/blog/category/[slug]/page.tsx`**
+- Category archive page: all posts in that category
+
+### 15.6 SEO optimization
+
+Each blog post should have:
+- Dynamic `generateMetadata` using metaTitle/metaDescription from post
+- Canonical URL
+- Open Graph tags (title, description, image)
+- JSON-LD Article schema
+- Breadcrumb navigation
+
+Blog index should have:
+- Static metadata optimized for "fast food nutrition blog"
+- JSON-LD Blog schema
+
+### 15.7 Content structure
+
+Recommended blog categories to seed:
+- Restaurant Guides
+- Healthy Eating Tips
+- Macro Breakdowns
+- Diet-Specific (Keto, Low-Carb, High-Protein)
+- Comparisons
+
+### 15.8 File tree additions
+
+```
+src/app/
+├── (consumer)/
+│   └── blog/
+│       ├── page.tsx                    # Blog index
+│       ├── [slug]/
+│       │   └── page.tsx                # Post detail
+│       └── category/
+│           └── [slug]/
+│               └── page.tsx            # Category archive
+├── (admin)/
+│   └── admin/
+│       └── blog/
+│           ├── page.tsx                # Post list
+│           ├── [id]/
+│           │   └── page.tsx            # Post editor
+│           └── categories/
+│               └── page.tsx            # Category management
+└── api/
+    └── admin/
+        └── blog/
+            ├── posts/
+            │   ├── route.ts            # GET list, POST create
+            │   └── [id]/route.ts       # GET, PUT, DELETE
+            ├── categories/route.ts      # GET list, POST create
+            └── upload/route.ts          # POST image upload
+
+src/components/
+├── consumer/
+│   ├── blog-card.tsx
+│   ├── blog-hero.tsx
+│   └── markdown-content.tsx
+└── admin/
+    └── blog-editor.tsx
+
+src/lib/
+└── validators/
+    └── blog.ts                          # Zod schemas for blog
+```
+
+### 15.9 Verification
+
+- Create a blog post in admin, publish it
+- Verify post appears on blog index
+- Verify post detail page renders markdown correctly
+- Verify SEO metadata is correct
+- Verify category filtering works
+- Verify blog appears in sitemap
+
+---
+
+## 16. Priority 12 — Page-by-Page PDF Pipeline
+
+**Depends on:** P4 (existing PDF ingestion pipeline)
+**Produces:** Optimized PDF processing that handles large documents efficiently
+
+### 16.1 Problem statement
+
+The current pipeline sends the entire PDF to Claude's vision API in a single request. For large nutrition PDFs (50+ pages), this creates problems:
+- **Token bloat:** Large PDFs consume massive amounts of context window
+- **Timeout risk:** Processing time increases with document size
+- **Cost inefficiency:** Paying for full context even when most pages have similar structure
+- **Error recovery:** If one page fails, the entire extraction fails
+
+### 16.2 Solution: Page-by-page processing
+
+Split the PDF into individual pages and process each page in a separate API call. This provides:
+- **Smaller context windows:** Each call processes only one page
+- **Parallel processing:** Multiple pages can be processed concurrently
+- **Granular error handling:** Failed pages can be retried independently
+- **Better progress tracking:** UI can show "Processing page 5 of 23"
+- **Cost optimization:** Only pay for actual content per page
+
+### 16.3 Implementation architecture
+
+```
+PDF Upload
+    │
+    ▼
+Split PDF into N pages (using pdf-lib or similar)
+    │
+    ▼
+For each page (parallel, with concurrency limit):
+    │
+    ├─► Send page image to Claude Vision API
+    │   └─► Extract items from that page
+    │   └─► Return partial results
+    │
+    ▼
+Merge all page results
+    │
+    ▼
+Deduplicate items (by name)
+    │
+    ▼
+Run validation on merged results
+    │
+    ▼
+Status: "review"
+```
+
+### 16.4 Updated pipeline code
+
+**`src/lib/ingestion/pdf-splitter.ts`** (new file):
+
+```typescript
+import { PDFDocument } from "pdf-lib";
+import fs from "fs/promises";
+
+export interface PdfPage {
+  pageNumber: number;
+  pdfBase64: string; // Single-page PDF as base64
+}
+
+export async function splitPdfIntoPages(pdfPath: string): Promise<PdfPage[]> {
+  const pdfBuffer = await fs.readFile(pdfPath);
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const totalPages = pdfDoc.getPageCount();
+
+  const pages: PdfPage[] = [];
+
+  for (let i = 0; i < totalPages; i++) {
+    // Create a new document with just this page
+    const singlePageDoc = await PDFDocument.create();
+    const [copiedPage] = await singlePageDoc.copyPages(pdfDoc, [i]);
+    singlePageDoc.addPage(copiedPage);
+
+    const singlePageBytes = await singlePageDoc.save();
+    const base64 = Buffer.from(singlePageBytes).toString("base64");
+
+    pages.push({
+      pageNumber: i + 1,
+      pdfBase64: base64,
+    });
+  }
+
+  return pages;
+}
+```
+
+**`src/lib/ingestion/page-processor.ts`** (new file):
+
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+import { ExtractedItem } from "./ai-agent";
+import { AI_PAGE_EXTRACTION_PROMPT } from "./prompts";
+
+const anthropic = new Anthropic();
+
+export interface PageResult {
+  pageNumber: number;
+  items: ExtractedItem[];
+  error?: string;
+}
+
+export async function processPage(
+  pageBase64: string,
+  pageNumber: number,
+  restaurantName: string,
+  existingCategories: string[] = []
+): Promise<PageResult> {
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8000,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: pageBase64,
+            },
+          },
+          {
+            type: "text",
+            text: AI_PAGE_EXTRACTION_PROMPT
+              .replace("{{RESTAURANT_NAME}}", restaurantName)
+              .replace("{{EXISTING_CATEGORIES}}", existingCategories.join(", ") || "None yet"),
+          },
+        ],
+      }],
+    });
+
+    const text = response.content
+      .filter(block => block.type === "text")
+      .map(block => block.text)
+      .join("");
+
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      // Page might have no nutrition data (cover page, legal text, etc.)
+      return { pageNumber, items: [] };
+    }
+
+    const items: ExtractedItem[] = JSON.parse(jsonMatch[0]);
+    return { pageNumber, items };
+  } catch (error) {
+    return {
+      pageNumber,
+      items: [],
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+```
+
+**`src/lib/ingestion/parallel-pipeline.ts`** (new file):
+
+```typescript
+import pLimit from "p-limit";
+import { splitPdfIntoPages } from "./pdf-splitter";
+import { processPage, PageResult } from "./page-processor";
+import { ExtractedItem } from "./ai-agent";
+
+const CONCURRENCY_LIMIT = 5; // Process up to 5 pages simultaneously
+
+export interface PipelineProgress {
+  totalPages: number;
+  completedPages: number;
+  currentPage: number;
+  status: "splitting" | "processing" | "merging" | "validating" | "complete";
+}
+
+export async function runPageByPagePipeline(
+  pdfPath: string,
+  restaurantName: string,
+  onProgress?: (progress: PipelineProgress) => void
+): Promise<ExtractedItem[]> {
+  // Stage 1: Split PDF
+  onProgress?.({ totalPages: 0, completedPages: 0, currentPage: 0, status: "splitting" });
+  const pages = await splitPdfIntoPages(pdfPath);
+  const totalPages = pages.length;
+
+  // Stage 2: Process pages in parallel with concurrency limit
+  const limit = pLimit(CONCURRENCY_LIMIT);
+  const discoveredCategories: string[] = [];
+  let completedPages = 0;
+
+  const pagePromises = pages.map((page) =>
+    limit(async () => {
+      onProgress?.({
+        totalPages,
+        completedPages,
+        currentPage: page.pageNumber,
+        status: "processing",
+      });
+
+      const result = await processPage(
+        page.pdfBase64,
+        page.pageNumber,
+        restaurantName,
+        discoveredCategories
+      );
+
+      // Track discovered categories for subsequent pages
+      result.items.forEach((item) => {
+        if (item.category && !discoveredCategories.includes(item.category)) {
+          discoveredCategories.push(item.category);
+        }
+      });
+
+      completedPages++;
+      return result;
+    })
+  );
+
+  const pageResults = await Promise.all(pagePromises);
+
+  // Stage 3: Merge results
+  onProgress?.({ totalPages, completedPages: totalPages, currentPage: 0, status: "merging" });
+
+  const allItems: ExtractedItem[] = [];
+  const seenNames = new Set<string>();
+  const failedPages: number[] = [];
+
+  for (const result of pageResults) {
+    if (result.error) {
+      failedPages.push(result.pageNumber);
+      continue;
+    }
+
+    for (const item of result.items) {
+      // Deduplicate by name (case-insensitive)
+      const normalizedName = item.name.toLowerCase().trim();
+      if (!seenNames.has(normalizedName)) {
+        seenNames.add(normalizedName);
+        allItems.push(item);
+      }
+    }
+  }
+
+  // Log failed pages for review
+  if (failedPages.length > 0) {
+    console.warn(`Failed to process pages: ${failedPages.join(", ")}`);
+  }
+
+  return allItems;
+}
+```
+
+### 16.5 Updated prompts
+
+Add to `src/lib/ingestion/prompts.ts`:
+
+```typescript
+export const AI_PAGE_EXTRACTION_PROMPT = `You are extracting nutrition data from a single page of a restaurant nutrition PDF.
+
+Restaurant: {{RESTAURANT_NAME}}
+Categories found on previous pages: {{EXISTING_CATEGORIES}}
+
+## Instructions
+
+1. Extract ALL menu items visible on this page
+2. Use existing categories when they fit, or create new ones if needed
+3. If this page contains no menu items (e.g., cover page, legal text, footnotes), return an empty array: []
+4. Some items may span multiple columns or rows - extract each distinct item once
+
+## Output format
+
+Return ONLY a JSON array of items. Each item:
+{
+  "name": "string",
+  "category": "string",
+  "servingSize": "string or null",
+  "calories": number,
+  "totalFatG": number or null,
+  "saturatedFatG": number or null,
+  "transFatG": number or null,
+  "cholesterolMg": number or null,
+  "sodiumMg": number or null,
+  "totalCarbsG": number or null,
+  "dietaryFiberG": number or null,
+  "sugarsG": number or null,
+  "proteinG": number or null,
+  "confidence": "high" | "medium" | "low",
+  "notes": "string or null"
+}
+
+Return [] if no menu items on this page.`;
+```
+
+### 16.6 Pipeline updates
+
+Update `src/lib/ingestion/pipeline.ts` to use the new page-by-page approach:
+
+```typescript
+import { runPageByPagePipeline } from "./parallel-pipeline";
+
+export async function runIngestionPipeline(jobId: string): Promise<void> {
+  try {
+    await updateJobStatus(jobId, "processing");
+
+    const job = await getJob(jobId);
+    const pdfPath = path.join(process.cwd(), "public", job.pdfUrl);
+    const restaurant = await getRestaurant(job.restaurantId);
+
+    // Use page-by-page pipeline
+    const items = await runPageByPagePipeline(
+      pdfPath,
+      restaurant.name,
+      async (progress) => {
+        // Update job with progress info (optional: add progress field to job)
+        await updateJobProgress(jobId, progress);
+      }
+    );
+
+    await saveStructuredData(jobId, items);
+
+    const validationReport = runValidation(items);
+    await saveValidationReport(jobId, validationReport);
+
+    await updateJobStatus(jobId, "review");
+  } catch (error) {
+    await failJob(jobId, error);
+  }
+}
+```
+
+### 16.7 Database schema update
+
+Add progress tracking to `ingestion_jobs` table:
+
+```typescript
+// Add to ingestionJobs table:
+processingProgress: jsonb("processing_progress"), // { totalPages, completedPages, currentPage, status }
+```
+
+### 16.8 UI updates
+
+Update the ingestion review page to show granular progress:
+
+- "Splitting PDF into pages..."
+- "Processing page 5 of 23..."
+- "Merging results..."
+- "Validating 142 items..."
+
+### 16.9 Dependencies
+
+Add to `package.json`:
+```json
+{
+  "pdf-lib": "^1.17.1",
+  "p-limit": "^5.0.0"
+}
+```
+
+### 16.10 Verification
+
+- Upload a large PDF (20+ pages)
+- Verify progress updates show in UI
+- Verify all pages are processed
+- Verify items are correctly merged and deduplicated
+- Verify failed pages are logged but don't crash the pipeline
+- Compare extraction quality to single-request approach
+
+---
+
+## 17. File Tree Reference
 
 Complete expected file tree at the end of MVP development:
 
@@ -1548,7 +2252,7 @@ fastcalorie/
 
 ---
 
-## 15. Environment Variables
+## 18. Environment Variables
 
 `.env.local` — all required variables:
 
@@ -1575,7 +2279,7 @@ For production, set these as Vercel environment variables. Never commit `.env.lo
 
 ---
 
-## 16. Validation Rules Reference
+## 19. Validation Rules Reference
 
 Quick reference for all validation logic used across the application.
 
@@ -1623,7 +2327,7 @@ Quick reference for all validation logic used across the application.
 
 ---
 
-## 17. AI Prompt Templates
+## 20. AI Prompt Templates
 
 ### System prompt for the nutrition extraction agent
 
