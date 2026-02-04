@@ -77,6 +77,7 @@ interface ValidationResult {
 
 // Combined item with validation data for display
 interface DisplayItem extends ExtractedItem {
+  originalIndex: number;
   validationStatus: "pass" | "warning" | "error";
   validationChecks: ValidationCheck[];
 }
@@ -89,6 +90,7 @@ interface IngestionJob {
   pdfUrl: string | null;
   structuredData: ExtractedItem[] | null;
   validationReport: ValidationResult[] | null;
+  approvedIndexes: number[] | null;
   itemsExtracted: number;
   itemsApproved: number;
   errorMessage: string | null;
@@ -277,11 +279,11 @@ function ReviewTable({
   };
 
   const startEditing = (
-    index: number,
+    originalIndex: number,
     field: string,
     currentValue: string | number | null,
   ) => {
-    setEditingCell({ index, field });
+    setEditingCell({ index: originalIndex, field });
     setEditValue(currentValue?.toString() || "");
   };
 
@@ -377,7 +379,7 @@ function ReviewTable({
                     </Button>
                   </TableCell>
                   <TableCell className="font-medium max-w-[200px] truncate">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "name" ? (
                       <Input
                         value={editValue}
@@ -393,14 +395,14 @@ function ReviewTable({
                     ) : (
                       <span
                         className="cursor-pointer hover:underline"
-                        onClick={() => startEditing(index, "name", item.name)}
+                        onClick={() => startEditing(item.originalIndex, "name", item.name)}
                       >
                         {item.name}
                       </span>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "category" ? (
                       <Input
                         value={editValue}
@@ -417,7 +419,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "category", item.category)
+                          startEditing(item.originalIndex, "category", item.category)
                         }
                       >
                         {item.category}
@@ -425,7 +427,7 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "calories" ? (
                       <Input
                         type="number"
@@ -443,7 +445,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "calories", item.calories)
+                          startEditing(item.originalIndex, "calories", item.calories)
                         }
                       >
                         {item.calories}
@@ -451,7 +453,7 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "totalFatG" ? (
                       <Input
                         type="number"
@@ -470,7 +472,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "totalFatG", item.totalFatG)
+                          startEditing(item.originalIndex, "totalFatG", item.totalFatG)
                         }
                       >
                         {item.totalFatG != null ? `${item.totalFatG}g` : "—"}
@@ -478,7 +480,7 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "totalCarbsG" ? (
                       <Input
                         type="number"
@@ -497,7 +499,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "totalCarbsG", item.totalCarbsG)
+                          startEditing(item.originalIndex, "totalCarbsG", item.totalCarbsG)
                         }
                       >
                         {item.totalCarbsG != null ? `${item.totalCarbsG}g` : "—"}
@@ -505,7 +507,7 @@ function ReviewTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums hidden md:table-cell">
-                    {editingCell?.index === index &&
+                    {editingCell?.index === item.originalIndex &&
                     editingCell?.field === "proteinG" ? (
                       <Input
                         type="number"
@@ -524,7 +526,7 @@ function ReviewTable({
                       <span
                         className="cursor-pointer hover:underline"
                         onClick={() =>
-                          startEditing(index, "proteinG", item.proteinG)
+                          startEditing(item.originalIndex, "proteinG", item.proteinG)
                         }
                       >
                         {item.proteinG != null ? `${item.proteinG}g` : "—"}
@@ -747,19 +749,24 @@ export default function IngestionReviewPage() {
   }, [job?.structuredData, localItems]);
 
   // Merge extracted items with validation report to create display items
+  // Filter out already-approved items
   const items: DisplayItem[] = React.useMemo(() => {
     const rawItems = localItems || job?.structuredData || [];
     const validationReport = job?.validationReport || [];
+    const approvedSet = new Set(job?.approvedIndexes || []);
 
-    return rawItems.map((item, index) => {
-      const validation = validationReport.find((v) => v.itemIndex === index);
-      return {
-        ...item,
-        validationStatus: validation?.status || "pass",
-        validationChecks: validation?.checks || [],
-      };
-    });
-  }, [localItems, job?.structuredData, job?.validationReport]);
+    return rawItems
+      .map((item, index) => {
+        const validation = validationReport.find((v) => v.itemIndex === index);
+        return {
+          ...item,
+          originalIndex: index,
+          validationStatus: validation?.status || "pass",
+          validationChecks: validation?.checks || [],
+        };
+      })
+      .filter((item) => !approvedSet.has(item.originalIndex));
+  }, [localItems, job?.structuredData, job?.validationReport, job?.approvedIndexes]);
 
   const approveMutation = useMutation({
     mutationFn: async (itemIndices: number[]) => {
@@ -784,31 +791,77 @@ export default function IngestionReviewPage() {
       queryClient.invalidateQueries({ queryKey: ["ingestionJobs"] });
       queryClient.invalidateQueries({ queryKey: ["restaurants"] });
       setSelectedIds(new Set());
+      setLocalItems(null); // Reset local state to use fresh data from server
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async ({
+      itemIndex,
+      updates,
+    }: {
+      itemIndex: number;
+      updates: Partial<ExtractedItem>;
+    }) => {
+      const res = await fetch(
+        `/api/admin/ingestion/${jobId}/items/${itemIndex}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(updates),
+        },
+      );
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Update failed");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ingestionJob", jobId] });
+      setLocalItems(null); // Reset local state to use fresh data from server
     },
   });
 
   const handleItemUpdate = React.useCallback(
-    (index: number, field: keyof ExtractedItem, value: string | number) => {
+    (originalIndex: number, field: keyof ExtractedItem, value: string | number) => {
+      // Optimistically update local state
       setLocalItems((prev) => {
-        if (!prev) return prev;
-        const newItems = [...prev];
-        newItems[index] = { ...newItems[index], [field]: value };
+        const items = prev || job?.structuredData || [];
+        const newItems = [...items];
+        newItems[originalIndex] = { ...newItems[originalIndex], [field]: value };
         return newItems;
       });
+
+      // Persist to server
+      editMutation.mutate({
+        itemIndex: originalIndex,
+        updates: { [field]: value },
+      });
     },
-    [],
+    [job?.structuredData, editMutation],
   );
 
   const handleApproveSelected = () => {
-    const indices = Array.from(selectedIds).map(Number);
-    approveMutation.mutate(indices);
+    // Map display indices back to original indices
+    const originalIndices = Array.from(selectedIds).map((displayIdx) => {
+      const item = items[Number(displayIdx)];
+      return item.originalIndex;
+    });
+    approveMutation.mutate(originalIndices);
   };
 
   const handleApproveAllPassing = () => {
-    const indices = items
-      .map((item, i) => (item.validationStatus !== "error" ? i : -1))
-      .filter((i) => i >= 0);
-    approveMutation.mutate(indices);
+    // Get original indices of all non-error items
+    const originalIndices = items
+      .filter((item) => item.validationStatus !== "error")
+      .map((item) => item.originalIndex);
+    approveMutation.mutate(originalIndices);
   };
 
   if (isLoading) {
