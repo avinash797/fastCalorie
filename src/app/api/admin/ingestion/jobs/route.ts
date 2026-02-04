@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ingestionJobs, restaurants } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 
 export const GET = withAuth(async (request) => {
   try {

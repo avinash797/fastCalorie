@@ -13,17 +13,20 @@ export interface AuthenticatedAdmin {
 type AuthenticatedHandler = (
   request: NextRequest,
   admin: AuthenticatedAdmin,
-  context?: { params: Promise<Record<string, string>> }
+  context?: { params: Promise<Record<string, string>> },
 ) => Promise<NextResponse>;
 
 export function withAuth(handler: AuthenticatedHandler) {
   return async (
     request: NextRequest,
-    context?: { params: Promise<Record<string, string>> }
+    context?: { params: Promise<Record<string, string>> },
   ): Promise<NextResponse> => {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Missing or invalid authorization header" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Missing or invalid authorization header" },
+        { status: 401 },
+      );
     }
 
     const token = authHeader.slice(7);
@@ -32,7 +35,10 @@ export function withAuth(handler: AuthenticatedHandler) {
     try {
       payload = verifyToken(token);
     } catch {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Invalid or expired token" },
+        { status: 401 },
+      );
     }
 
     const admin = await db
@@ -51,13 +57,20 @@ export function withAuth(handler: AuthenticatedHandler) {
     }
 
     if (!admin[0].isActive) {
-      return NextResponse.json({ error: "Account deactivated" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Account deactivated" },
+        { status: 403 },
+      );
     }
 
-    return handler(request, {
-      id: admin[0].id,
-      email: admin[0].email,
-      name: admin[0].name,
-    }, context);
+    return handler(
+      request,
+      {
+        id: admin[0].id,
+        email: admin[0].email,
+        name: admin[0].name,
+      },
+      context,
+    );
   };
 }

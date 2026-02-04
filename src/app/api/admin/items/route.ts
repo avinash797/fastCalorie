@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and, count } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { menuItems } from "@/lib/db/schema";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 
 export const GET = withAuth(async (request) => {
   try {
@@ -12,7 +12,7 @@ export const GET = withAuth(async (request) => {
     if (!restaurantId) {
       return NextResponse.json(
         { error: "restaurantId query parameter is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -20,7 +20,7 @@ export const GET = withAuth(async (request) => {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(
       100,
-      Math.max(1, parseInt(searchParams.get("limit") || "50", 10))
+      Math.max(1, parseInt(searchParams.get("limit") || "50", 10)),
     );
     const offset = (page - 1) * limit;
 
@@ -39,10 +39,7 @@ export const GET = withAuth(async (request) => {
         .where(whereClause)
         .limit(limit)
         .offset(offset),
-      db
-        .select({ total: count() })
-        .from(menuItems)
-        .where(whereClause),
+      db.select({ total: count() }).from(menuItems).where(whereClause),
     ]);
 
     return NextResponse.json(
@@ -55,12 +52,12 @@ export const GET = withAuth(async (request) => {
           totalPages: Math.ceil(total / limit),
         },
       },
-      { headers: { "Cache-Control": "no-store" } }
+      { headers: { "Cache-Control": "no-store" } },
     );
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });

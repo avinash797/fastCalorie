@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { inArray, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { menuItems } from "@/lib/db/schema";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 import { logAudit } from "@/lib/db/audit";
 
 const bulkActionSchema = z.object({
@@ -20,7 +20,7 @@ export const POST = withAuth(async (request, admin) => {
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parsed.error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -29,7 +29,7 @@ export const POST = withAuth(async (request, admin) => {
     if (action === "recategorize" && !category) {
       return NextResponse.json(
         { error: "category is required for recategorize action" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -42,7 +42,7 @@ export const POST = withAuth(async (request, admin) => {
     if (existingItems.length === 0) {
       return NextResponse.json(
         { error: "No items found with the provided IDs" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -93,7 +93,7 @@ export const POST = withAuth(async (request, admin) => {
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });

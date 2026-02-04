@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 import { db } from "@/lib/db";
 import { admins } from "@/lib/db/schema";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 import { logAudit } from "@/lib/db/audit";
 
 const updateAdminSchema = z.object({

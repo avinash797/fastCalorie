@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 
 const ALLOWED_TYPES = [
   "image/png",
@@ -25,10 +25,7 @@ export const POST = withAuth(async (request) => {
     const file = formData.get("file");
 
     if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -36,14 +33,14 @@ export const POST = withAuth(async (request) => {
         {
           error: "Invalid file type. Allowed: PNG, JPG, SVG, WebP",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
         { error: "File too large. Maximum size is 2MB" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -62,7 +59,7 @@ export const POST = withAuth(async (request) => {
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });

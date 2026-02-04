@@ -3,7 +3,7 @@ import { eq, asc } from "drizzle-orm";
 import slugify from "slugify";
 import { db } from "@/lib/db";
 import { restaurants } from "@/lib/db/schema";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 import { logAudit } from "@/lib/db/audit";
 import { createRestaurantSchema } from "@/lib/validators/restaurant";
 
@@ -13,11 +13,10 @@ export const GET = withAuth(async (request) => {
     const statusFilter = searchParams.get("status");
 
     const whereClause =
-      statusFilter &&
-      ["active", "draft", "archived"].includes(statusFilter)
+      statusFilter && ["active", "draft", "archived"].includes(statusFilter)
         ? eq(
             restaurants.status,
-            statusFilter as "active" | "draft" | "archived"
+            statusFilter as "active" | "draft" | "archived",
           )
         : undefined;
 
@@ -40,7 +39,7 @@ export const GET = withAuth(async (request) => {
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });
@@ -53,16 +52,14 @@ export const POST = withAuth(async (request, admin) => {
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parsed.error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const data = parsed.data;
 
     // Auto-generate slug if not provided
-    const slug =
-      data.slug ||
-      slugify(data.name, { lower: true, strict: true });
+    const slug = data.slug || slugify(data.name, { lower: true, strict: true });
 
     // Check slug uniqueness
     const existing = await db
@@ -74,7 +71,7 @@ export const POST = withAuth(async (request, admin) => {
     if (existing.length > 0) {
       return NextResponse.json(
         { error: "A restaurant with this slug already exists" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -102,7 +99,7 @@ export const POST = withAuth(async (request, admin) => {
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });

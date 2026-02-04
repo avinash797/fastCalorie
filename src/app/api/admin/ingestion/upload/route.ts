@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { eq } from "drizzle-orm";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/auth/auth-middleware";
 import { db } from "@/lib/db";
 import { ingestionJobs, restaurants } from "@/lib/db/schema";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
@@ -21,14 +21,14 @@ export const POST = withAuth(async (request: NextRequest, admin) => {
     if (!restaurantId || typeof restaurantId !== "string") {
       return NextResponse.json(
         { error: "restaurantId is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
         { error: "PDF file is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -42,7 +42,7 @@ export const POST = withAuth(async (request: NextRequest, admin) => {
     if (!restaurant) {
       return NextResponse.json(
         { error: "Restaurant not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -50,7 +50,7 @@ export const POST = withAuth(async (request: NextRequest, admin) => {
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: "File size exceeds 50MB limit" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -58,7 +58,7 @@ export const POST = withAuth(async (request: NextRequest, admin) => {
     if (file.type !== "application/pdf") {
       return NextResponse.json(
         { error: "File must be a PDF" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -69,7 +69,7 @@ export const POST = withAuth(async (request: NextRequest, admin) => {
     if (buffer.length < 4 || !buffer.subarray(0, 4).equals(PDF_MAGIC)) {
       return NextResponse.json(
         { error: "File does not appear to be a valid PDF" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -103,7 +103,7 @@ export const POST = withAuth(async (request: NextRequest, admin) => {
     console.error("Upload error:", error);
     return NextResponse.json(
       { error: "Failed to process upload" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });
