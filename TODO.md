@@ -108,15 +108,53 @@
 
 ---
 
-## P9: Polish, Performance & Deploy (0/7)
+## P9: Polish, Performance & Deploy (5/7)
 
 - [ ] **Meet performance targets** — Lighthouse Performance >= 90 on home/restaurant/item pages. LCP < 1.5s, CLS < 0.1, FID < 100ms. `/api/v1/all-items` response < 500ms. Client-side search < 50ms.
-- [ ] **Implement caching strategy** — Consumer endpoints: `Cache-Control: public, s-maxage=300, stale-while-revalidate=600` for restaurants/restaurant detail/all-items. Items: `s-maxage=600, stale-while-revalidate=1200`. Admin endpoints: `Cache-Control: no-store`.
-- [ ] **Add error handling** — All API routes: top-level try/catch, consistent error shape `{error: string, details?: unknown}`. Consumer pages: friendly error states. Admin pages: detailed error messages.
-- [ ] **Add loading states** — Every data-fetching page: skeleton/shimmer UI (not spinners). Search: subtle loading indicator during debounce. Ingestion review: progress steps during pipeline.
-- [ ] **Create 404 and error pages** — `src/app/not-found.tsx`: custom 404 with search bar + home link. `src/app/error.tsx`: custom error page with retry button.
+- [x] **Implement caching strategy** — Consumer endpoints: `Cache-Control: public, s-maxage=300, stale-while-revalidate=600` for restaurants/restaurant detail/all-items. Items: `s-maxage=600, stale-while-revalidate=1200`. Admin endpoints: `Cache-Control: no-store`.
+- [x] **Add error handling** — All API routes: top-level try/catch, consistent error shape `{error: string, details?: unknown}`. Consumer pages: friendly error states. Admin pages: detailed error messages.
+- [x] **Add loading states** — Every data-fetching page: skeleton/shimmer UI (not spinners). Search: subtle loading indicator during debounce. Ingestion review: progress steps during pipeline.
+- [x] **Create 404 and error pages** — `src/app/not-found.tsx`: custom 404 with search bar + home link. `src/app/error.tsx`: custom error page with retry button.
 - [ ] **Deploy to Vercel** — Connect GitHub repo, set env vars (DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY, NEXT_PUBLIC_APP_URL). Build command: `npm run build`, output: `.next`. Create Neon/Supabase PostgreSQL instance, run migrations, seed admin. Post-deploy: verify home page, admin login, PDF ingestion, search, all restaurant/item pages, mobile layout.
-- [ ] **Set up CI/CD** — GitHub Actions workflow: on push/PR, checkout, setup Node 20, `npm ci`, `npm run build`, `npm run lint`. Type checking and linting on every push.
+- [x] **Set up CI/CD** — GitHub Actions workflow: on push/PR, checkout, setup Node 20, `npm ci`, `npm run build`, `npm run lint`. Type checking and linting on every push.
+
+---
+
+## P10: Marketing Landing Page (0/6)
+
+- [ ] **Create marketing route group** — `src/app/(marketing)/` route group for marketing pages separate from the consumer app.
+- [ ] **Create landing page layout** — `src/app/(marketing)/layout.tsx`: Minimal header with logo and CTA button, optimized footer.
+- [ ] **Create hero section** — `src/components/marketing/hero-section.tsx`: Headline, subheadline, primary CTA ("Search Now" → `/`), secondary CTA ("See All Restaurants" → `/restaurants`), hero image/illustration.
+- [ ] **Create main landing page sections** — `src/app/(marketing)/page.tsx` with: problem/solution section, how-it-works (3 steps), restaurant showcase grid, feature highlights, FAQ accordion, footer CTA with newsletter signup (email capture for Phase 2).
+- [ ] **Add landing page SEO** — Dynamic `generateMetadata`: title "FastCalorie — Fast Food Nutrition Search | Calories, Macros & More", meta description, Open Graph image, JSON-LD WebSite schema with SearchAction.
+- [ ] **Verify P10** — Landing page loads, all sections render on mobile/desktop, CTAs link correctly, Lighthouse SEO audit passes, OG image displays on social share.
+
+---
+
+## P11: Blog & SEO Content System (0/10)
+
+- [ ] **Add blog database schema** — Extend `src/lib/db/schema.ts` with: `blogPostStatusEnum` (draft/published/archived), `blogPosts` table (id, slug, title, excerpt, content, featuredImageUrl, authorId FK, status, metaTitle, metaDescription, keywords, publishedAt, createdAt, updatedAt), `blogCategories` table (id, name, slug, description), `blogPostCategories` junction table. Run migration.
+- [ ] **Create blog Zod validators** — `src/lib/validators/blog.ts`: `createBlogPostSchema`, `updateBlogPostSchema`, `createBlogCategorySchema`.
+- [ ] **Create blog admin API endpoints** — `src/app/api/admin/blog/posts/route.ts` (GET list with pagination/status filter, POST create), `src/app/api/admin/blog/posts/[id]/route.ts` (GET, PUT, DELETE soft-delete), `src/app/api/admin/blog/categories/route.ts` (GET list, POST create), `src/app/api/admin/blog/upload/route.ts` (POST featured image to `public/uploads/blog/`).
+- [ ] **Create blog admin UI — post list** — `src/app/(admin)/admin/blog/page.tsx`: Table (Title, Status badge, Categories, Published Date, Author), "New Post" button, status filter tabs (All/Draft/Published/Archived).
+- [ ] **Create blog admin UI — post editor** — `src/app/(admin)/admin/blog/[id]/page.tsx`: Title input, slug (auto-generated), markdown textarea, excerpt, featured image upload, category multi-select, SEO fields (meta title, description, keywords), status toggle, publish/save buttons.
+- [ ] **Create blog admin UI — categories** — `src/app/(admin)/admin/blog/categories/page.tsx`: Category list, create/edit forms.
+- [ ] **Create consumer blog index** — `src/app/(consumer)/blog/page.tsx`: Featured/latest post hero, grid of post cards (image, title, excerpt, date), category filter pills, pagination.
+- [ ] **Create consumer blog post page** — `src/app/(consumer)/blog/[slug]/page.tsx`: Title, author, date, featured image, markdown rendered to HTML (use `react-markdown`), category tags, related posts, CTA linking to restaurant search.
+- [ ] **Create consumer blog category archive** — `src/app/(consumer)/blog/category/[slug]/page.tsx`: All posts in category with pagination.
+- [ ] **Add blog SEO** — Each post: dynamic `generateMetadata` from metaTitle/metaDescription, canonical URL, Open Graph tags, JSON-LD Article schema, breadcrumbs. Blog index: JSON-LD Blog schema. Seed initial categories: Restaurant Guides, Healthy Eating Tips, Macro Breakdowns, Diet-Specific, Comparisons.
+
+---
+
+## P12: Page-by-Page PDF Pipeline (0/7)
+
+- [ ] **Add pdf-lib and p-limit dependencies** — `npm install pdf-lib p-limit` for PDF splitting and concurrency control.
+- [ ] **Create PDF splitter** — `src/lib/ingestion/pdf-splitter.ts`: `splitPdfIntoPages(pdfPath)` returns array of `{pageNumber, pdfBase64}`. Uses pdf-lib to create single-page PDFs from each page of the source.
+- [ ] **Create page processor** — `src/lib/ingestion/page-processor.ts`: `processPage(pageBase64, pageNumber, restaurantName, existingCategories)` sends single page to Claude vision API, returns `{pageNumber, items[], error?}`. Handle empty pages (cover, legal) returning `[]`.
+- [ ] **Create parallel pipeline orchestrator** — `src/lib/ingestion/parallel-pipeline.ts`: `runPageByPagePipeline(pdfPath, restaurantName, onProgress?)`. Split PDF → process pages in parallel (concurrency limit 5) → track discovered categories across pages → merge results → deduplicate by name → return combined items.
+- [ ] **Add page extraction prompt** — `src/lib/ingestion/prompts.ts`: `AI_PAGE_EXTRACTION_PROMPT` with restaurant name placeholder, existing categories list, instructions for single-page extraction, empty array output for non-menu pages.
+- [ ] **Update database schema for progress tracking** — Add `processingProgress` (jsonb) field to `ingestion_jobs` table: `{totalPages, completedPages, currentPage, status}`. Run migration.
+- [ ] **Update pipeline and UI** — Modify `src/lib/ingestion/pipeline.ts` to use `runPageByPagePipeline`. Update `src/app/(admin)/admin/ingestion/[jobId]/page.tsx` to show granular progress: "Splitting PDF...", "Processing page X of Y...", "Merging results...", "Validating N items...".
 
 ---
 

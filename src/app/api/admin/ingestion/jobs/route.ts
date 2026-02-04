@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ingestionJobs, restaurants } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
+import { withAuth } from "@/lib/auth/auth-middleware";
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request) => {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "20", 10);
@@ -32,7 +33,9 @@ export async function GET(request: NextRequest) {
 
     const jobs = await query;
 
-    return NextResponse.json(jobs);
+    return NextResponse.json(jobs, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
     console.error("Failed to fetch ingestion jobs:", error);
     return NextResponse.json(
@@ -40,4 +43,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

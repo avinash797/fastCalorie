@@ -96,7 +96,7 @@ export function ConsumerHomePageClient() {
               No items found
             </h3>
             <p className="text-muted-foreground">
-              Try searching for something else like "Burger" or "Fries".
+              Try searching for something else like &quot;Burger&quot; or &quot;Fries&quot;.
             </p>
           </div>
         ) : (
