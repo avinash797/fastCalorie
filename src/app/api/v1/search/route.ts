@@ -54,7 +54,11 @@ export async function GET(request: NextRequest) {
       )
       .limit(50);
 
-    return NextResponse.json(results);
+    return NextResponse.json(results, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+      },
+    });
   } catch (error) {
     console.error("Error searching items:", error);
     return NextResponse.json(
