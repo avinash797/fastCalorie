@@ -2,7 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { AI_SYSTEM_PROMPT } from "./prompts";
 import type { PdfDocument } from "./extract";
 
-const anthropic = new Anthropic();
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+
+const anthropic = new Anthropic({
+  apiKey: ANTHROPIC_API_KEY,
+});
 
 export interface ExtractedItem {
   name: string;
@@ -35,11 +39,13 @@ function parseJsonFromResponse(text: string): ExtractedItem[] {
 
 export async function aiExtractNutritionData(
   pdfDocument: PdfDocument,
-  restaurantName: string
+  restaurantName: string,
 ): Promise<ExtractedItem[]> {
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 16000,
+  // Use streaming to handle long-running requests (>10 minutes)
+  // See: https://github.com/anthropics/anthropic-sdk-typescript#long-requests
+  const stream = anthropic.messages.stream({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 64000,
     system: AI_SYSTEM_PROMPT,
     messages: [
       {
@@ -62,10 +68,23 @@ export async function aiExtractNutritionData(
     ],
   });
 
+  // Wait for the stream to complete and get the final message
+  const response = await stream.finalMessage();
+
   const text = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)
     .join("");
+
+  console.log(text);
+  const fs = await import("fs/promises");
+  const path = await import("path");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const fileName = `${restaurantName.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${timestamp}.txt`;
+  const outputDir = path.join(process.cwd(), "public", "response");
+
+  await fs.mkdir(outputDir, { recursive: true });
+  await fs.writeFile(path.join(outputDir, fileName), text);
 
   return parseJsonFromResponse(text);
 }

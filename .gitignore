@@ -41,6 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 # uploaded files (MVPlocal storage)
+public/response/*
 public/uploads/logos/*
 public/uploads/pdfs/*
 !public/uploads/logos/.gitkeep
