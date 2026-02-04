@@ -769,7 +769,7 @@ export default function IngestionReviewPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ itemIndices }),
+        body: JSON.stringify({ itemIndexes: itemIndices }),
       });
 
       if (!res.ok) {
