@@ -76,7 +76,6 @@ export async function aiExtractNutritionData(
     .map((block) => block.text)
     .join("");
 
-  console.log(text);
   const fs = await import("fs/promises");
   const path = await import("path");
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
