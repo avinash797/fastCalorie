@@ -146,15 +146,15 @@
 
 ---
 
-## P12: Page-by-Page PDF Pipeline (0/7)
+## P12: Page-by-Page PDF Pipeline (7/7) ✅
 
-- [ ] **Add pdf-lib and p-limit dependencies** — `npm install pdf-lib p-limit` for PDF splitting and concurrency control.
-- [ ] **Create PDF splitter** — `src/lib/ingestion/pdf-splitter.ts`: `splitPdfIntoPages(pdfPath)` returns array of `{pageNumber, pdfBase64}`. Uses pdf-lib to create single-page PDFs from each page of the source.
-- [ ] **Create page processor** — `src/lib/ingestion/page-processor.ts`: `processPage(pageBase64, pageNumber, restaurantName, existingCategories)` sends single page to Claude vision API, returns `{pageNumber, items[], error?}`. Handle empty pages (cover, legal) returning `[]`.
-- [ ] **Create parallel pipeline orchestrator** — `src/lib/ingestion/parallel-pipeline.ts`: `runPageByPagePipeline(pdfPath, restaurantName, onProgress?)`. Split PDF → process pages in parallel (concurrency limit 5) → track discovered categories across pages → merge results → deduplicate by name → return combined items.
-- [ ] **Add page extraction prompt** — `src/lib/ingestion/prompts.ts`: `AI_PAGE_EXTRACTION_PROMPT` with restaurant name placeholder, existing categories list, instructions for single-page extraction, empty array output for non-menu pages.
-- [ ] **Update database schema for progress tracking** — Add `processingProgress` (jsonb) field to `ingestion_jobs` table: `{totalPages, completedPages, currentPage, status}`. Run migration.
-- [ ] **Update pipeline and UI** — Modify `src/lib/ingestion/pipeline.ts` to use `runPageByPagePipeline`. Update `src/app/(admin)/admin/ingestion/[jobId]/page.tsx` to show granular progress: "Splitting PDF...", "Processing page X of Y...", "Merging results...", "Validating N items...".
+- [x] **Add pdf-lib and p-limit dependencies** — `npm install pdf-lib p-limit` for PDF splitting and concurrency control.
+- [x] **Create PDF splitter** — `src/lib/ingestion/pdf-splitter.ts`: `splitPdfIntoPages(pdfPath)` returns array of `{pageNumber, pdfBase64}`. Uses pdf-lib to create single-page PDFs from each page of the source.
+- [x] **Create page processor** — `src/lib/ingestion/page-processor.ts`: `processPage(pageBase64, pageNumber, restaurantName, existingCategories)` sends single page to Claude vision API, returns `{pageNumber, items[], error?}`. Handle empty pages (cover, legal) returning `[]`.
+- [x] **Create parallel pipeline orchestrator** — `src/lib/ingestion/parallel-pipeline.ts`: `runPageByPagePipeline(pdfPath, restaurantName, onProgress?)`. Split PDF → process pages in parallel (concurrency limit 5) → track discovered categories across pages → merge results → deduplicate by name → return combined items.
+- [x] **Add page extraction prompt** — `src/lib/ingestion/prompts.ts`: `AI_PAGE_EXTRACTION_PROMPT` with restaurant name placeholder, existing categories list, instructions for single-page extraction, empty array output for non-menu pages.
+- [x] **Update database schema for progress tracking** — Add `processingProgress` (jsonb) field to `ingestion_jobs` table: `{totalPages, completedPages, currentPage, status}`. Run migration.
+- [x] **Update pipeline and UI** — Modify `src/lib/ingestion/pipeline.ts` to use `runPageByPagePipeline`. Update `src/app/(admin)/admin/ingestion/[jobId]/page.tsx` to show granular progress: "Splitting PDF...", "Processing page X of Y...", "Merging results...", "Validating N items...".
 
 ---
 

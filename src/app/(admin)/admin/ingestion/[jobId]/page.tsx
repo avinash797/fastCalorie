@@ -82,6 +82,13 @@ interface DisplayItem extends ExtractedItem {
   validationChecks: ValidationCheck[];
 }
 
+interface ProcessingProgress {
+  totalPages: number;
+  completedPages: number;
+  currentPage: number;
+  status: "splitting" | "processing" | "merging" | "validating" | "complete";
+}
+
 interface IngestionJob {
   id: string;
   restaurantId: string;
@@ -94,6 +101,7 @@ interface IngestionJob {
   itemsExtracted: number;
   itemsApproved: number;
   errorMessage: string | null;
+  processingProgress: ProcessingProgress | null;
   createdAt: string;
 }
 
@@ -679,6 +687,67 @@ function ReviewTable({
   );
 }
 
+function PageByPageProgress({
+  progress,
+}: {
+  progress: ProcessingProgress | null;
+}) {
+  if (!progress) {
+    return (
+      <>
+        <p className="text-lg font-medium">Processing PDF...</p>
+        <p className="text-muted-foreground">
+          This may take a few minutes. The page will update automatically.
+        </p>
+      </>
+    );
+  }
+
+  const statusMessages: Record<ProcessingProgress["status"], string> = {
+    splitting: "Splitting PDF into pages...",
+    processing:
+      progress.totalPages > 0
+        ? `Processing page ${progress.currentPage} of ${progress.totalPages}...`
+        : "Processing pages...",
+    merging: "Merging results...",
+    validating: `Validating ${progress.completedPages > 0 ? `${progress.completedPages} pages of` : ""} items...`,
+    complete: "Processing complete!",
+  };
+
+  const message = statusMessages[progress.status];
+  const showProgressBar =
+    progress.status === "processing" && progress.totalPages > 0;
+  const pct =
+    showProgressBar
+      ? Math.round((progress.completedPages / progress.totalPages) * 100)
+      : 0;
+
+  return (
+    <>
+      <p className="text-lg font-medium">{message}</p>
+      {showProgressBar && (
+        <div className="mt-4 mx-auto max-w-md">
+          <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
+            <span>
+              {progress.completedPages} / {progress.totalPages} pages
+            </span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
+      <p className="text-muted-foreground mt-2">
+        The page will update automatically.
+      </p>
+    </>
+  );
+}
+
 // Constants for polling
 const POLLING_INTERVAL_MS = 2000;
 const MAX_POLLING_DURATION_MS = 5 * 60 * 1000; // 5 minutes
@@ -968,11 +1037,7 @@ export default function IngestionReviewPage() {
             ) : (
               <>
                 <Loader2 className="size-10 mx-auto mb-4 animate-spin text-primary" />
-                <p className="text-lg font-medium">Processing PDF...</p>
-                <p className="text-muted-foreground">
-                  This may take a few minutes. The page will update
-                  automatically.
-                </p>
+                <PageByPageProgress progress={job.processingProgress} />
               </>
             )}
           </CardContent>
