@@ -133,6 +133,12 @@ export const ingestionJobs = pgTable("ingestion_jobs", {
   itemsExtracted: integer("items_extracted").notNull().default(0),
   itemsApproved: integer("items_approved").notNull().default(0),
   errorLog: text("error_log"),
+  processingProgress: jsonb("processing_progress").$type<{
+    totalPages: number;
+    completedPages: number;
+    currentPage: number;
+    status: "splitting" | "processing" | "merging" | "validating" | "complete";
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

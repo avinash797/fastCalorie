@@ -2,8 +2,10 @@ import { eq } from "drizzle-orm";
 import path from "path";
 import { db } from "@/lib/db";
 import { ingestionJobs, restaurants } from "@/lib/db/schema";
-import { extractPdfAsBase64 } from "./extract";
-import { aiExtractNutritionData } from "./ai-agent";
+import {
+  runPageByPagePipeline,
+  type PipelineProgress,
+} from "./parallel-pipeline";
 import { runValidation } from "./validation";
 
 async function updateJobStatus(
@@ -16,11 +18,10 @@ async function updateJobStatus(
     .where(eq(ingestionJobs.id, jobId));
 }
 
-async function saveExtractionMetadata(jobId: string) {
-  // Store metadata about the extraction in rawText field
+async function updateJobProgress(jobId: string, progress: PipelineProgress) {
   await db
     .update(ingestionJobs)
-    .set({ rawText: "PDF document sent directly to Claude for vision-based extraction" })
+    .set({ processingProgress: progress })
     .where(eq(ingestionJobs.id, jobId));
 }
 
@@ -80,23 +81,48 @@ export async function runIngestionPipeline(jobId: string): Promise<void> {
     // Stage 1: Update status to "processing"
     await updateJobStatus(jobId, "processing");
 
-    // Stage 2: Read PDF as base64 for Claude's document input
+    // Stage 2: Run page-by-page pipeline (split → process pages in parallel → merge → deduplicate)
     const pdfPath = path.join(process.cwd(), "public", job.pdfUrl);
-    const pdfDocument = await extractPdfAsBase64(pdfPath);
-    await saveExtractionMetadata(jobId);
 
-    // Stage 3: Send PDF directly to Claude for vision-based extraction
-    const structuredData = await aiExtractNutritionData(
-      pdfDocument,
-      restaurant.name
-    );
+    const { items: structuredData, failedPages } =
+      await runPageByPagePipeline(
+        pdfPath,
+        restaurant.name,
+        async (progress) => {
+          await updateJobProgress(jobId, progress);
+        }
+      );
+
+    // Save extraction metadata
+    const rawTextNote = failedPages.length > 0
+      ? `Page-by-page extraction complete. Failed pages: ${failedPages.join(", ")}`
+      : "Page-by-page extraction complete. All pages processed successfully.";
+
+    await db
+      .update(ingestionJobs)
+      .set({ rawText: rawTextNote })
+      .where(eq(ingestionJobs.id, jobId));
+
     await saveStructuredData(jobId, structuredData, structuredData.length);
 
-    // Stage 4: Run validation
+    // Stage 3: Run validation
+    await updateJobProgress(jobId, {
+      totalPages: 0,
+      completedPages: 0,
+      currentPage: 0,
+      status: "validating",
+    });
+
     const validationReport = runValidation(structuredData);
     await saveValidationReport(jobId, validationReport);
 
-    // Stage 5: Update status to "review" (await admin approval)
+    // Stage 4: Update status to "review" (await admin approval)
+    await updateJobProgress(jobId, {
+      totalPages: 0,
+      completedPages: 0,
+      currentPage: 0,
+      status: "complete",
+    });
     await updateJobStatus(jobId, "review");
   } catch (error) {
     await failJob(jobId, error);
