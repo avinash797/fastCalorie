@@ -56,3 +56,38 @@ Use these categories when they fit. Create new ones only when necessary:
 ## Output format
 
 Return ONLY the JSON array. No markdown, no code fences, no explanation text. Just the raw JSON array starting with [ and ending with ].`;
+
+export const AI_PAGE_EXTRACTION_PROMPT = `You are extracting nutrition data from a single page of a restaurant nutrition PDF.
+
+Restaurant: {{RESTAURANT_NAME}}
+Categories found on previous pages: {{EXISTING_CATEGORIES}}
+
+## Instructions
+
+1. Extract ALL menu items visible on this page
+2. Use existing categories when they fit, or create new ones if needed
+3. If this page contains no menu items (e.g., cover page, legal text, footnotes), return an empty array: []
+4. Some items may span multiple columns or rows - extract each distinct item once
+
+## Output format
+
+Return ONLY a JSON array of items. Each item:
+{
+  "name": "string",
+  "category": "string",
+  "servingSize": "string or null",
+  "calories": number,
+  "totalFatG": number or null,
+  "saturatedFatG": number or null,
+  "transFatG": number or null,
+  "cholesterolMg": number or null,
+  "sodiumMg": number or null,
+  "totalCarbsG": number or null,
+  "dietaryFiberG": number or null,
+  "sugarsG": number or null,
+  "proteinG": number or null,
+  "confidence": "high" | "medium" | "low",
+  "notes": "string or null"
+}
+
+Return [] if no menu items on this page.`;
